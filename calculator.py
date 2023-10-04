@@ -6,6 +6,9 @@ import os
 import re
 import statistics
 import scipy
+import warnings
+
+warnings.filterwarnings("ignore")
 
 exitAttempts = 0
 
@@ -21,6 +24,7 @@ class Symbols:
     negative = '\u207b'
     phi = '\u03d5'
     pi = '\u03c0'
+    divide = '\u00f7'
     class Radicals:
         sqrt = '\u221a'
         cbrt = '\u221b'
@@ -28,7 +32,6 @@ class Symbols:
         fourth = '\u00bc'
         half = '\u00bd'
         quarter3 = '\u00be'
-        third = '\u2153'
 
 # constants
 c = 299792458
@@ -57,11 +60,16 @@ log2 = math.log2
 cbrt = math.cbrt
 sqrt = math.sqrt
 exp = math.exp
-mean = statistics.mean
-stdev = statistics.stdev
+floor = math.floor
+ceil = math.ceil
+mean = statistics.mean; average = statistics.mean; avg = statistics.mean
+mode = statistics.mode
+median = statistics.median
+#stdev = statistics.stdev
 z2p = scipy.stats.norm.cdf
 p2z = scipy.stats.norm.ppf
 fact = math.factorial; factorial = math.factorial
+normaltest = scipy.stats.normaltest
 
 def isNumber(value):
     if str(value).isnumeric():
@@ -76,10 +84,17 @@ def isNumber(value):
 
 def useSymbols(equation):
     equation = str(equation)
-    replacements = {"\*": Symbols.cdot, "sqrt": Symbols.Radicals.sqrt,
-    "cbrt": Symbols.Radicals.cbrt, "\(1/2\)": Symbols.Fractions.half,
-    "\(1/3\)": Symbols.Fractions.third, "\(1/4\)": Symbols.Fractions.fourth,
-    "phi": Symbols.phi, "pi": Symbols.pi}
+    replacements = {
+        "\*": Symbols.cdot,
+        "sqrt": Symbols.Radicals.sqrt,
+        "cbrt": Symbols.Radicals.cbrt,
+        "\(1/2\)": Symbols.Fractions.half,
+        "\(1/4\)": Symbols.Fractions.fourth,
+        "\(3/4\)": Symbols.Fractions.quarter3,
+        "phi": Symbols.phi,
+        "pi": Symbols.pi,
+        "/": Symbols.divide
+    }
     for sym, val in replacements.items():
         equation = re.sub(sym, val, equation)
     return equation
@@ -87,21 +102,32 @@ def useSymbols(equation):
 def addToHistory(equation, result):
     global history
     if isNumber(result):
+        # remove last equation from history if the max. limit is reached
+        if len(history) >= 40:
+            history.pop(0)
         if result >= 1e18:
-            history.append(f"{useSymbols(equation)} = {result:e}")
+            appendText = f"{useSymbols(equation)} = {result:e}"
+            if appendText in history:
+                history.remove(appendText)
+            history.append(appendText)
         else:
-            history.append(f"{useSymbols(equation)} = {result:,}")
+            appendText = f"{useSymbols(equation)} = {result:,}"
+            if appendText in history:
+                history.remove(appendText)
+            history.append(appendText)
+    elif isinstance(result, list):
+        history.append(result)
 
 def fixUI(userValue):
     global history
     match userValue.lower():
-        case "history":
+        case "history" | "hist":
             print(*history, sep='\n')
             return None
-        case "clear history":
+        case "clear history" | "clear hist":
             history = []
             return None
-        case "constant" | "constants":
+        case "constant" | "constants" | "const":
             for key, value in constants.items():
                 print(f"{key} => {value}")
             return None
@@ -124,6 +150,31 @@ def root(nth, n): return pow(n, 1/nth)
 def ncr(n, r): return math.factorial(n) / ( math.factorial(r) * math.factorial(n - r) )
 
 def npr(n, r): return math.factorial(n) / math.factorial(n - r)
+
+def quantile(numberSet, p, method='weibull'):
+    return scipy.quantile(numberSet, p, method=method)
+
+def score2p(numberSet, score, method='weak'):
+    return scipy.stats.percentileofscore(numberSet, score, kind=method) / 100
+
+def outliers(numberSet):
+    outlierSet = []
+    Q1 = scipy.quantile(numberSet, .25, method='weibull')
+    Q3 = scipy.quantile(numberSet, .75, method='weibull')
+    IQR = Q3 - Q1
+    lowerFence = Q1 - 1.5 * IQR
+    higherFence = Q3 + 1.5 * IQR
+    for num in numberSet:
+        if num < lowerFence or num > higherFence:
+            outlierSet.append(num)
+    return outlierSet
+
+def stdev(numberSet, population_type="sample"):
+    match population_type:
+        case "sample":
+            return statistics.stdev(numberSet)
+        case "population" | "pop":
+            return statistics.pstdev(numberSet)
 
 def tan(n, unit='degrees'):
     deg = unit.lower().startswith('deg')
@@ -174,6 +225,9 @@ while True:
                             print(f"{result:e}")
                         else:
                             print(f"{result:,}")
+                    elif isinstance(result, list):
+                        addToHistory(ui, result)
+                        print(result)
                     else:
                         print(result)
     except KeyboardInterrupt:
