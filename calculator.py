@@ -116,7 +116,10 @@ def addToHistory(equation, result):
                 history.remove(appendText)
             history.append(appendText)
     elif isinstance(result, list):
-        history.append(result)
+        appendText = f"{useSymbols(equation)} = {result}"
+        if appendText in history:
+            history.remove(appendText)
+        history.append(appendText)
 
 def fixUI(userValue):
     global history
