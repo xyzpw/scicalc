@@ -7,6 +7,13 @@ import re
 import statistics
 import scipy
 import warnings
+import argparse
+
+parse = argparse.ArgumentParser()
+parse.add_argument("-e", help="Equation to solve", type=str)
+args = parse.parse_args()
+
+var_args = vars(args)
 
 warnings.filterwarnings("ignore")
 
@@ -208,6 +215,17 @@ def sec(n, unit='degrees'):
 
 def clear():
     os.system("clear")
+
+if var_args.get('e') != None:
+    ui = var_args.get('e')
+    fixedString = fixUI(ui)
+    if fixedString != None:
+        result = eval(fixedString)
+        if isNumber(result):
+            exit(f"{result:e}") if result >= 1e16 else exit(f"{result:,}")
+        else:
+            exit(result)
+    exit()
 
 while True:
     try:
