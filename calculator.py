@@ -42,11 +42,10 @@ class Symbols:
 
 # constants
 c = 299792458
-g = 9.8
+g = 9.80665
 G = 6.67430 * 10**-11
 pi = math.pi
 e = math.e
-ly = 299792458 * (3600 * 24 * 365)
 h = 6.62607015e-34
 k = 1.380649e-23
 phi = (1 + math.sqrt(5)) / 2
@@ -56,7 +55,6 @@ constants = {"c": f"Speed of light {c:,} m/s",
     "G": f"Gravitational constant {G} N{Symbols.cdot}m{Symbols.squared}/kg{Symbols.squared}",
     "h": f"Planck's constant {h} J/Hz",
     "k": f"Boltzmann constant {k} J/K",
-    "ly": f"1 light year {ly:,} m",
     "phi": f"Golden ratio {phi}"
 }
 
@@ -157,9 +155,87 @@ def log(base, n): return math.log10(n) / math.log10(base)
 
 def root(nth, n): return pow(n, 1/nth)
 
-def ncr(n, r): return math.factorial(n) / ( math.factorial(r) * math.factorial(n - r) )
+def nCr(n, r): return math.factorial(n) / ( math.factorial(r) * math.factorial(n - r) )
 
-def npr(n, r): return math.factorial(n) / math.factorial(n - r)
+def nPr(n, r): return math.factorial(n) / math.factorial(n - r)
+
+def trunc(n, p=0):
+    if n == 0:
+        return 0
+    elif n > 0:
+        return math.floor(n * 10**p) / 10**p
+    elif n < 0:
+        return math.ceil(n * 10**p) / 10**p
+    return None
+
+def distance(n, unit1, unit2):
+    """
+        Convert units, e.g. distance(1, 'm', 'ft') ~ 3.28
+        pm => Picometers
+        nm => Nanometers
+        um => Micrometers
+        mm => Millimeters
+        cm => Centimeters
+        dm => Decimeters
+        km => Kilometers
+        ly => Light years
+        in => inches
+        ft => feet
+        yd => yards
+        mi => miles
+        planck => planck length
+    """
+    units = {
+        "m": 1,
+        "pm": 1/1e12,
+        "nm": 1/1e9,
+        "um": 1/1e6,
+        "mm": 1/1000,
+        "cm": 1/100,
+        "dm": 1/10,
+        "km": 1000,
+        "ly": 299792458 * (60 * 60 * 24 * 365.25), # we use 365.25 days for a year because there is a leap year every 4 years
+        "in": 0.3048/12,
+        "ft": 0.3048,
+        "yd": 0.3048*3,
+        "mi": 0.3048*5280,
+        "planck": 1.616255e-35
+    }
+    multiplier = units.get(unit1) # multiply by this to get meters
+    n_meters = n * multiplier
+    return n_meters / units.get(unit2)
+
+def mass(n, unit1, unit2):
+    """
+        Convert units, e.g. mass(1, 'kg', 'lb') ~ 2.204622
+        kg => kilograms
+        ug => micrograms
+        mg => milligrams
+        g => grams
+        t => metric ton
+        gr => grain
+        oz => ounce
+        lb => pound
+        st => stone
+        ton => US ton
+        planck => planck mass
+    """
+    units = {
+        "kg": 1,
+        "ug": 1/1e9,
+        "mg": 1/1e6,
+        "g": 1/1e3,
+        "t": 1000,
+        "gr": 64.79891/1e6,
+        "oz": 0.45359237/16,
+        "lb": 0.45359237,
+        "st": 6.35029318,
+        "ton": 907.18474,
+        "planck": 2.176434e-8
+    }
+    multiplier = units.get(unit1) # multiply by this to get kilograms
+    n_kg = n * multiplier
+    return n_kg / units.get(unit2)
 
 def quantile(numberSet, p, method='weibull'):
     return scipy.quantile(numberSet, p, method=method)
