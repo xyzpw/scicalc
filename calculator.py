@@ -237,6 +237,31 @@ def mass(n, unit1, unit2):
     n_kg = n * multiplier
     return n_kg / units.get(unit2)
 
+def time(n, unit1, unit2):
+    """
+    Convert time e.g. time(1, 'm', 's') = 1
+    us => microsecond
+    ms => millisecond
+    min => minute
+    h => hour
+    d => days
+    wk => weeks
+    a => julian year
+    """
+    units = {
+        "s": 1,
+        "us": 1/1e6,
+        "ms": 1/1e3,
+        "min": 60,
+        "h": 3600,
+        "d": 86400,
+        "wk": 86400*7,
+        "a": 365.25*86400
+    }
+    multiplier = units.get(unit1) # multiply by this to get seconds
+    n_s = n * multiplier
+    return n_s / units.get(unit2)
+
 def quantile(numberSet, p, method='weibull'):
     return scipy.quantile(numberSet, p, method=method)
 
