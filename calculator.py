@@ -8,6 +8,9 @@ import statistics
 import scipy
 import warnings
 import argparse
+import sympy
+
+sympy.init_printing(pretty_print=True, use_unicode=True)
 
 parse = argparse.ArgumentParser()
 parse.add_argument("-e", help="Equation to solve", type=str)
@@ -65,12 +68,13 @@ log2 = math.log2
 cbrt = math.cbrt
 sqrt = math.sqrt
 exp = math.exp
+erf = math.erf
+erfc = math.erfc
 floor = math.floor
 ceil = math.ceil
 mean = statistics.mean; average = statistics.mean; avg = statistics.mean
 mode = statistics.mode
 median = statistics.median
-#stdev = statistics.stdev
 z2p = scipy.stats.norm.cdf
 p2z = scipy.stats.norm.ppf
 fact = math.factorial; factorial = math.factorial
@@ -104,7 +108,7 @@ def useSymbols(equation):
         equation = re.sub(sym, val, equation)
     return equation
 
-def addToHistory(equation, result):
+def addToHistory(equation, result, includeAll=False):
     global history
     if isNumber(result):
         # remove last equation from history if the max. limit is reached
@@ -122,6 +126,11 @@ def addToHistory(equation, result):
             history.append(appendText)
     elif isinstance(result, list):
         appendText = f"{useSymbols(equation)} = {result}"
+        if appendText in history:
+            history.remove(appendText)
+        history.append(appendText)
+    elif includeAll:
+        appendText = f"{equation} = {result}"
         if appendText in history:
             history.remove(appendText)
         history.append(appendText)
@@ -158,6 +167,37 @@ def root(nth, n): return pow(n, 1/nth)
 def nCr(n, r): return math.factorial(n) / ( math.factorial(r) * math.factorial(n - r) )
 
 def nPr(n, r): return math.factorial(n) / math.factorial(n - r)
+
+def integrate(f, lower=None, upper=None, pretty=True):
+    """
+    Uses sympy.integrate with custom options
+    Note: When integrating without limits, you add the '+ C' at the end.
+    """
+    if lower != None and upper != None:
+        result = sympy.integrate(f, ('x', lower, upper))
+        newEquation = f"integrate({f}, lower={lower}, upper={upper})"
+        addToHistory(newEquation, str(result), includeAll=True)
+        if pretty:
+            return sympy.pprint(result)
+        else:
+            return result
+    if lower == None and upper == None:
+        result = sympy.integrate(f)
+        addToHistory(f, str(result), includeAll=True)
+        if pretty:
+            return sympy.pprint(result)
+        else:
+            return result
+    return "Error"
+def integral(f, pretty=True):
+    result = sympy.Integral(f)
+    newEquation = f"integral({f})"
+    addToHistory(newEquation, str(result), includeAll=True)
+    if pretty:
+        return sympy.pprint(result)
+    elif not pretty:
+        return result
+    return "Error"
 
 def trunc(n, p=0):
     if n == 0:
@@ -239,7 +279,7 @@ def mass(n, unit1, unit2):
 
 def time(n, unit1, unit2):
     """
-    Convert time e.g. time(1, 'm', 's') = 1
+    Convert time e.g. time(1, 'min', 's') = 60
     us => microsecond
     ms => millisecond
     min => minute
@@ -350,7 +390,7 @@ while True:
                     elif isinstance(result, list):
                         addToHistory(ui, result)
                         print(result)
-                    else:
+                    elif result != None:
                         print(result)
     except KeyboardInterrupt:
         if exitAttempts >= 1: exit("\nTerminating script ...")
