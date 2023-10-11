@@ -10,6 +10,8 @@ import warnings
 import argparse
 import sympy
 
+#import sys
+
 sympy.init_printing(pretty_print=True, use_unicode=True)
 
 parse = argparse.ArgumentParser()
@@ -110,7 +112,7 @@ def useSymbols(equation):
 
 def addToHistory(equation, result, includeAll=False):
     global history
-    if isNumber(result):
+    if isNumber(result) and isinstance(result, (int, float)):
         # remove last equation from history if the max. limit is reached
         if len(history) >= 40:
             history.pop(0)
@@ -224,6 +226,8 @@ def distance(n, unit1, unit2):
         ft => feet
         yd => yards
         mi => miles
+        au => astronomical unit
+        pc = parsec
         planck => planck length
     """
     units = {
@@ -240,6 +244,8 @@ def distance(n, unit1, unit2):
         "ft": 0.3048,
         "yd": 0.3048*3,
         "mi": 0.3048*5280,
+        "au": 149597870700,
+        "pc": (648000 / math.pi) * 149597870700,
         "planck": 1.616255e-35
     }
     multiplier = units.get(unit1) # multiply by this to get meters
@@ -364,7 +370,7 @@ if var_args.get('e') != None:
     if fixedString != None:
         result = eval(fixedString)
         if isNumber(result):
-            exit(f"{result:e}") if result >= 1e16 else exit(f"{result:,}")
+            exit(f"{result:e}") if result >= 1e18 else exit(f"{result:,}")
         else:
             exit(result)
     exit()
@@ -384,7 +390,7 @@ while True:
                     result = eval(fixedString)
                     if isNumber(result):
                         addToHistory(ui, result)
-                        if result >= 1e16:
+                        if result >= 1e18:
                             print(f"{result:e}")
                         else:
                             print(f"{result:,}")
@@ -401,3 +407,4 @@ while True:
         exit("\nTerminating script ...")
     except Exception as _e:
         print(_e)
+        #print(sys.exc_info()[-1].tb_lineno, type(_e).__name__)
