@@ -183,7 +183,8 @@ def integrate(f, lower=None, upper=None, pretty=True):
             return result
     if lower == None and upper == None:
         result = sympy.integrate(f)
-        addToHistory(f, str(result), includeAll=True)
+        newEquation = f"integrate({f})"
+        addToHistory(newEquation, str(result), includeAll=True)
         if pretty:
             return sympy.pprint(result)
         else:
