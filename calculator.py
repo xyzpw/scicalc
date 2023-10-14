@@ -81,6 +81,8 @@ z2p = scipy.stats.norm.cdf
 p2z = scipy.stats.norm.ppf
 fact = math.factorial; factorial = math.factorial
 normaltest = scipy.stats.normaltest
+product = scipy.prod; prod = scipy.prod
+gmean = scipy.stats.gmean
 
 def isNumber(value):
     if str(value).isnumeric():
