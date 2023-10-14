@@ -202,6 +202,17 @@ def integral(f, pretty=True):
         return result
     return "Error"
 
+def lim(f, x):
+    result = float( sympy.limit(f, 'x', x) )
+    return result
+
+def Lim(f, x, pretty=True):
+    if pretty:
+        result = sympy.pprint(sympy.Limit(f, 'x', x))
+    else:
+        result = sympy.Limit(f, 'x', x)
+    return result
+
 def trunc(n, p=0):
     if n == 0:
         return 0
@@ -308,6 +319,46 @@ def time(n, unit1, unit2):
     multiplier = units.get(unit1) # multiply by this to get seconds
     n_s = n * multiplier
     return n_s / units.get(unit2)
+
+def volume(n, unit1, unit2):
+    """
+    Convert volume e.g. volume(1, 'bbl', 'gal') = 42
+    l => liter
+    gtt => drop
+    ml => milliliters
+    tsp => metric teaspoon
+    tbsp => metric tablespoon
+    imp_floz => imperial fluid ounce
+    imp_qt => imperial quart
+    floz => US fluid ounce
+    c => US cup
+    pt => US pint
+    imp_pt => imperial pint
+    qt => US quart
+    gal => US gallon
+    imp_gal => imperial gallon
+    bbl => oil barrel
+    """
+    units = {
+        "l": 1,
+        "gtt": 0.00005,
+        "ml": 0.001,
+        "tsp": 0.005,
+        "tbsp": 0.015,
+        "imp_floz": 0.0284130625,
+        "floz": 0.0295735295625,
+        "c": 0.2365882365,
+        "pt": 0.473176473,
+        "imp_pt": 0.56826125,
+        "qt": 0.946352946,
+        "imp_qt": 1.1365225,
+        "gal": 3.785411784,
+        "imp_gal": 4.54609,
+        "bbl": 158.98729492799998
+    }
+    multiplier = units.get(unit1) # multiply by this to get liters
+    n_l = n * multiplier
+    return n_l / units.get(unit2)
 
 def quantile(numberSet, p, method='weibull'):
     return scipy.quantile(numberSet, p, method=method)
