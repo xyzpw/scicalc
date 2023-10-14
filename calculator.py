@@ -75,8 +75,8 @@ erfc = math.erfc
 floor = math.floor
 ceil = math.ceil
 mean = statistics.mean; average = statistics.mean; avg = statistics.mean
-mode = statistics.mode
 median = statistics.median
+mode = statistics.multimode
 z2p = scipy.stats.norm.cdf
 p2z = scipy.stats.norm.ppf
 fact = math.factorial; factorial = math.factorial
