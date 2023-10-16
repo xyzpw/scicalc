@@ -9,6 +9,7 @@ import scipy
 import warnings
 import argparse
 import sympy
+import decimal
 
 #import sys
 
@@ -167,6 +168,18 @@ def rad2deg(rad):
 def log(base, n): return math.log10(n) / math.log10(base)
 
 def root(nth, n): return pow(n, 1/nth)
+
+def roundup(n, prec=0):
+    n = n * 10**prec
+    result = decimal.Decimal(n).quantize(0, decimal.ROUND_HALF_UP)
+    result /= 10**prec
+    return float(result)
+
+def rounddown(n, prec=0):
+    n = n * 10**prec
+    result = decimal.Decimal(n).quantize(0, decimal.ROUND_HALF_DOWN)
+    result /= 10**prec
+    return (float(result))
 
 def nCr(n, r): return math.factorial(n) / ( math.factorial(r) * math.factorial(n - r) )
 
@@ -413,9 +426,8 @@ def sec(n, unit='degrees'):
     return 1 / math.cos(n)
 
 
-
-def clear():
-    os.system("clear")
+clear = lambda: os.system("clear")
+# clear = lambda: os.system("clear && printf '\e[3J'") # alternative. Clears saved lines if your terminal doesn't do this by default
 
 if var_args.get('e') != None:
     ui = var_args.get('e')
