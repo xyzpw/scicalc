@@ -10,8 +10,9 @@ import warnings
 import argparse
 import sympy
 import decimal
+import sys
 
-#import sys
+sys.set_int_max_str_digits(0) # allowing very large numbers
 
 sympy.init_printing(pretty_print=True, use_unicode=True)
 
@@ -119,7 +120,7 @@ def addToHistory(equation, result, includeAll=False):
         # remove last equation from history if the max. limit is reached
         if len(history) >= 40:
             history.pop(0)
-        if result >= 1e18:
+        if result >= 1e18 and result < sys.float_info.max:
             appendText = f"{useSymbols(equation)} = {result:e}"
             if appendText in history:
                 history.remove(appendText)
@@ -181,9 +182,21 @@ def rounddown(n, prec=0):
     result /= 10**prec
     return (float(result))
 
-def nCr(n, r): return math.factorial(n) / ( math.factorial(r) * math.factorial(n - r) )
+def nCr(n, r): return math.factorial(n) // ( math.factorial(r) * math.factorial(n - r) )
 
-def nPr(n, r): return math.factorial(n) / math.factorial(n - r)
+def nPr(n, r): return math.factorial(n) // math.factorial(n - r)
+
+def binomial(p, n, x):
+    """
+    Usage: binomial(p, n, x)
+    p => probability of success
+    n => number of trials
+    x => number of successes
+    """
+    numberOfCombinations = nCr(n, x)
+    q = 1 - p
+    binomialProbability = numberOfCombinations * p**x * q**(n - x)
+    return binomialProbability
 
 def integrate(f, lower=None, upper=None, pretty=True):
     """
@@ -434,7 +447,7 @@ if var_args.get('e') != None:
     fixedString = fixUI(ui)
     if fixedString != None:
         result = eval(fixedString)
-        if isNumber(result):
+        if isNumber(result) and result < sys.float_info.max:
             exit(f"{result:e}") if result >= 1e18 else exit(f"{result:,}")
         else:
             exit(result)
@@ -455,7 +468,7 @@ while True:
                     result = eval(fixedString)
                     if isNumber(result):
                         addToHistory(ui, result)
-                        if result >= 1e18:
+                        if result >= 1e18 and result < sys.float_info.max:
                             print(f"{result:e}")
                         else:
                             print(f"{result:,}")
@@ -472,4 +485,4 @@ while True:
         exit("\nTerminating script ...")
     except Exception as _e:
         print(_e)
-        #print(sys.exc_info()[-1].tb_lineno, type(_e).__name__)
+        #print(sys.exc_info()[-1].tb_lineno, type(_e).__name__) get line of error
