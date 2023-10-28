@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import readline
+import prompt_toolkit
 import math
 import os
 import re
@@ -16,6 +16,7 @@ sys.set_int_max_str_digits(0) # allowing very large numbers
 
 sympy.init_printing(pretty_print=True, use_unicode=True)
 
+uiSession = prompt_toolkit.PromptSession()
 parse = argparse.ArgumentParser()
 parse.add_argument("-e", help="Equation to solve", type=str)
 args = parse.parse_args()
@@ -85,6 +86,7 @@ fact = math.factorial; factorial = math.factorial
 normaltest = scipy.stats.normaltest
 product = scipy.prod; prod = scipy.prod
 gmean = scipy.stats.gmean
+pstdev = statistics.pstdev
 
 def isNumber(value):
     if str(value).isnumeric():
@@ -396,15 +398,33 @@ def score2p(numberSet, score, method='weak'):
 
 def outliers(numberSet):
     outlierSet = []
-    Q1 = scipy.quantile(numberSet, .25, method='weibull')
-    Q3 = scipy.quantile(numberSet, .75, method='weibull')
-    IQR = Q3 - Q1
-    lowerFence = Q1 - 1.5 * IQR
-    higherFence = Q3 + 1.5 * IQR
+    q1 = scipy.quantile(numberSet, .25, method='weibull')
+    q3 = scipy.quantile(numberSet, .75, method='weibull')
+    iqr = q3 - q1
+    lowerFence = q1 - 1.5 * iqr
+    higherFence = q3 + 1.5 * iqr
     for num in numberSet:
         if num < lowerFence or num > higherFence:
             outlierSet.append(num)
     return outlierSet
+
+def IQR(numberSet):
+    q1 = scipy.quantile(numberSet, .25, method='weibull')
+    q3 = scipy.quantile(numberSet, .75, method='weibull')
+    iqr = q3 - q1
+    return iqr
+
+def lowerfence(numberSet):
+    q1 = scipy.quantile(numberSet, .25, method='weibull')
+    q3 = scipy.quantile(numberSet, .75, method='weibull')
+    iqr = q3 - q1
+    return q1 - 1.5 * iqr
+
+def upperfence(numberSet):
+    q1 = scipy.quantile(numberSet, .25, method='weibull')
+    q3 = scipy.quantile(numberSet, .75, method='weibull')
+    iqr = q3 - q1
+    return q3 + 1.5 * iqr
 
 def stdev(numberSet, population_type="sample"):
     match population_type:
@@ -455,7 +475,7 @@ if var_args.get('e') != None:
 
 while True:
     try:
-        ui = input(">")
+        ui = uiSession.prompt(">")
         exitAttempts = 0
         match ui:
             case "" | None:
