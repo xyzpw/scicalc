@@ -2,7 +2,7 @@
 A scientific calculator for your terminal emulator.
 # usage
 
-```
+```console
 # Install dependencies
 pip install -r requirements.txt
 
