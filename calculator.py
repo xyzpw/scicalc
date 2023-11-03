@@ -466,11 +466,14 @@ if var_args.get('e') != None:
     ui = var_args.get('e')
     fixedString = fixUI(ui)
     if fixedString != None:
-        result = eval(fixedString)
+        try:
+            result = eval(fixedString)
+        except Exception as _e:
+            exit(_e)
         if isNumber(result) and result < sys.float_info.max:
-            exit(f"{result:e}") if result >= 1e18 else exit(f"{result:,}")
+            print(f"{result:e}") if result >= 1e18 else print(f"{result:,}")
         else:
-            exit(result)
+            print(result)
     exit()
 
 while True:
@@ -498,11 +501,14 @@ while True:
                     elif result != None:
                         print(result)
     except KeyboardInterrupt:
-        if exitAttempts >= 1: exit("\nTerminating script ...")
+        if exitAttempts >= 1:
+            print("\nTerminating script ...")
+            exit()
         exitAttempts += 1
         print("\nConfirm exit via ctrl+C or ctrl+D")
     except EOFError:
-        exit("\nTerminating script ...")
+        print("\nTerminating script ...")
+        exit()
     except Exception as _e:
         print(_e)
         #print(sys.exc_info()[-1].tb_lineno, type(_e).__name__) get line of error
