@@ -1,0 +1,4 @@
+prompt-toolkit
+statistics
+sympy
+scipy

@@ -1,20 +1,16 @@
 # calculator.py
 A scientific calculator for your terminal emulator.
 # usage
-If you want to execute it, you need to add perms, e.g. 
+
 ```console
-chmod +x calculator.py
-```
-After adding execution perms, just execute it with
-```console
-./calculator.py
-```
-If you are using Windows, you should only need
-```console
+# Install dependencies
+pip install -r requirements.txt
+
+# Run calculator.py
 python3 calculator.py
 ```
 # functions & constants
-Comes with multiple functions and constants, some packages will need to be installed. <br>
+Comes with multiple functions and constants. <br>
 Examples of some functions:
 ```python
 distance(10, 'in', 'cm') # 25.4 cm
@@ -39,7 +35,7 @@ if you forget what you typed after clearing your screen with the "clear" command
 hist
 ```
 # functions that require packages
-Some functions will require external packages, example of one is scipy
+Some functions use packages that aren't in the standard library, example of one is scipy
 ```python
 z2p(1) # approx. 0.84
 p2z(.84) # approx. 1
