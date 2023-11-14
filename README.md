@@ -1,5 +1,6 @@
 # calculator.py
-A scientific calculator for your terminal emulator.
+A scientific calculator for your terminal emulator. <br/> <br/>
+Read [Discussions](https://github.com/xyzpw/calculator.py/discussions/2)
 # usage
 
 ```console
@@ -10,8 +11,11 @@ pip install -r requirements.txt
 python3 calculator.py
 ```
 # functions & constants
-Comes with multiple functions and constants. <br>
-Examples of some functions:
+##### Note: the `round` function uses Bankers Rounding method to avoid confusion. Python by default uses this method
+
+Comes with multiple functions and constants. <br> <br>
+
+Here is an example of a couple:
 ```python
 distance(10, 'in', 'cm') # 25.4 cm
 mass(50, 'kg', 'lb') # 110 pounds
@@ -35,7 +39,7 @@ if you forget what you typed after clearing your screen with the "clear" command
 hist
 ```
 # functions that require packages
-Some functions use packages that aren't in the standard library, example of one is scipy
+Some functions use packages that aren't in the standard library, an example of one is scipy:
 ```python
 z2p(1) # approx. 0.84
 p2z(.84) # approx. 1
