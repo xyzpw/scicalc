@@ -289,7 +289,7 @@ def uncertainty(numberSet):
     """
     Uncertainty of a number array (range over 2)
     Note: Uncertainty is usually rounded to 1 significant figure
-    uncertainty(numSet)
+    uncertainty(numberSet)
     """
     numberSetRange = max(numberSet) - min(numberSet)
     return numberSetRange / 2
