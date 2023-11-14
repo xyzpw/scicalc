@@ -63,7 +63,7 @@ constants = {"c": f"Speed of light {c:,} m/s",
     "G": f"Gravitational constant {G} N{Symbols.cdot}m{Symbols.squared}/kg{Symbols.squared}",
     "h": f"Planck's constant {h} J/Hz",
     "k": f"Boltzmann constant {k} J/K",
-    "phi": f"Golden ratio {phi}"
+    "phi": f"Golden ratio {phi}",
 }
 
 # functions
@@ -77,16 +77,17 @@ erf = math.erf
 erfc = math.erfc
 floor = math.floor
 ceil = math.ceil
-mean = statistics.mean; average = statistics.mean; avg = statistics.mean
+mean, average, avg = statistics.mean, statistics.mean, statistics.mean
 median = statistics.median
 mode = statistics.multimode
 z2p = scipy.stats.norm.cdf
 p2z = scipy.stats.norm.ppf
-fact = math.factorial; factorial = math.factorial
+fact, factorial = math.factorial, math.factorial
 normaltest = scipy.stats.normaltest
-product = scipy.prod; prod = scipy.prod
+product, prod = scipy.prod, scipy.prod
 gmean = scipy.stats.gmean
 pstdev = statistics.pstdev
+ptp = scipy.ptp
 
 def isNumber(value):
     if str(value).isnumeric():
@@ -110,7 +111,7 @@ def useSymbols(equation):
         "\(3/4\)": Symbols.Fractions.quarter3,
         "phi": Symbols.phi,
         "pi": Symbols.pi,
-        "/": Symbols.divide
+        "/": Symbols.divide,
     }
     for sym, val in replacements.items():
         equation = re.sub(sym, val, equation)
@@ -173,12 +174,20 @@ def log(base, n): return math.log10(n) / math.log10(base)
 def root(nth, n): return pow(n, 1/nth)
 
 def roundup(n, prec=0):
+    """
+    Round 5 up
+    roundup(2.5, prec=0) = 3
+    """
     n = n * 10**prec
     result = decimal.Decimal(n).quantize(0, decimal.ROUND_HALF_UP)
     result /= 10**prec
     return float(result)
 
 def rounddown(n, prec=0):
+    """
+    Round 5 down
+    rounddown(2.5, prec=0) = 2
+    """
     n = n * 10**prec
     result = decimal.Decimal(n).quantize(0, decimal.ROUND_HALF_DOWN)
     result /= 10**prec
@@ -252,6 +261,39 @@ def trunc(n, p=0):
         return math.ceil(n * 10**p) / 10**p
     return None
 
+def zscore(score, mean, sd):
+    """
+    zscore(score, mean, sd)
+    """
+    return ((score - mean) / sd)
+
+def z2pRange(z1, z2):
+    """
+    Percentile between two Z-scores
+    z2pRange(z1, z2)
+    z1 is the lower end and z2 is the upper end
+    """
+    p = scipy.stats.norm.cdf(z2) - scipy.stats.norm.cdf(z1)
+    return p
+
+def p2zRange(p1, p2):
+    """
+    Z-score between two percentiles
+    p2zRange(p1, p2)
+    p1 is the lower end and p2 is the upper end
+    """
+    z = scipy.stats.norm.ppf(p2) - scipy.stats.norm.ppf(p1)
+    return z
+
+def uncertainty(numberSet):
+    """
+    Uncertainty of a number array (range over 2)
+    Note: Uncertainty is usually rounded to 1 significant figure
+    uncertainty(numSet)
+    """
+    numberSetRange = max(numberSet) - min(numberSet)
+    return numberSetRange / 2
+
 def distance(n, unit1, unit2):
     """
         Convert units, e.g. distance(1, 'm', 'ft') ~ 3.28
@@ -287,7 +329,7 @@ def distance(n, unit1, unit2):
         "mi": 0.3048*5280,
         "au": 149597870700,
         "pc": (648000 / math.pi) * 149597870700,
-        "planck": 1.616255e-35
+        "planck": 1.616255e-35,
     }
     multiplier = units.get(unit1) # multiply by this to get meters
     n_meters = n * multiplier
@@ -319,7 +361,7 @@ def mass(n, unit1, unit2):
         "lb": 0.45359237,
         "st": 6.35029318,
         "ton": 907.18474,
-        "planck": 2.176434e-8
+        "planck": 2.176434e-8,
     }
     multiplier = units.get(unit1) # multiply by this to get kilograms
     n_kg = n * multiplier
@@ -344,7 +386,7 @@ def time(n, unit1, unit2):
         "h": 3600,
         "d": 86400,
         "wk": 86400*7,
-        "a": 365.25*86400
+        "a": 365.25*86400,
     }
     multiplier = units.get(unit1) # multiply by this to get seconds
     n_s = n * multiplier
@@ -384,7 +426,7 @@ def volume(n, unit1, unit2):
         "imp_qt": 1.1365225,
         "gal": 3.785411784,
         "imp_gal": 4.54609,
-        "bbl": 158.98729492799998
+        "bbl": 158.98729492799998,
     }
     multiplier = units.get(unit1) # multiply by this to get liters
     n_l = n * multiplier
