@@ -1,56 +1,70 @@
 # calculator.py
-A scientific calculator for your terminal emulator. <br/> <br/>
-Read [Discussions](https://github.com/xyzpw/calculator.py/discussions/2)
-# usage
+A scientific calculator for your terminal emulator.<br>
+![calculator_py-preview](https://github.com/xyzpw/calculator.py/assets/76017734/d7ef5ae7-1601-4722-a7d4-66e1442f2dc4)
+## Installing Dependancies
+Some modules will need to be installed for this application to work properly. See the codeblock below for an example on installing dependencies.
+```sh
+# install dependencies
+$ pip3 install -U -r requirements.txt
 
-```console
-# Install dependencies
-pip install -r requirements.txt
-
-# Run calculator.py
-python3 calculator.py
+# run calculator.py
+$ python3 calculator.py
 ```
-# functions & constants
-##### Note: the `round` function uses Bankers Rounding method to avoid confusion. Python by default uses this method
+## Features
+The **calculator.py** script contains several features, the `showhelp` function is useful because it displays usage info about a given function.<br><br>
+To use the `showhelp` function, type `showhelp()` inside the script. Optionally, you can display specific info about a given function by passing the function name in as an argument, e.g. `showhelp(log)`, this will display usage information for the `log` function.
+###### Note: The `round` function uses Bankers rounding. Python uses this rounding method by default, so this is used to avoid confusion. <br> If you want to round 5 up, use the `roundup` function, this is the most common rounding method.
 
-Comes with multiple functions and constants. <br> <br>
-
-Here is an example of a couple:
+### Viewing History
+History can be displayed with the `hist` command. Alternatively, the command `history` will do the same.<br>
+Optionally, you can display the last `n` commands in your history with `hist n` or `history n`.
+### Constants
+You can view the list of constants with the `const` command. This will give the following output:
+```text
+c = Speed of light 299,792,458 m/s
+g = Standard gravity 9.80665 m/s²
+G = Gravitational constant 6.6743e-11 N·m²·kg⁻²
+h = Planck constant 6.62607015e-34 J·Hz⁻¹
+kb = Boltzmann constant 1.380649e-23 J·K⁻¹
+phi = Golden ratio 1.618033988749895
+NA = Avogadro constant 6.02214076e+23 mol⁻¹
+ke = Coulomb constant 8987551792.3 N·m²·C⁻²
+e0 = Electric constant 8.8541878128e-12 F·m⁻¹
+R = Gas constant 8.31446261815324 J·K⁻¹·mol⁻¹
+```
+### Functions
+Examples for several, but not all functions.
+#### Mathematical
 ```python
-distance(10, 'in', 'cm') # 25.4 cm
-mass(50, 'kg', 'lb') # 110 pounds
-nPr(5, 5) / fact(2) # number of times you can arrange the word "apple"
+root(4, 16)
+# output: 2
+log(9, 81)
+# output: 2
 ```
-The function "log" was changed to be custom, example:
+#### Imaginary Numbers
 ```python
-# log(base, number)
-log(10, 100) # returns 2
+sqrt(-1)
+# output: i
 ```
-You can also eval an equation
-```console
-./calculator.py -e "nPr(5, 5) / fact(2)"
-```
-If you need to view/forget a constant, you can view them with the "const" command, via
-```console
-const
-```
-if you forget what you typed after clearing your screen with the "clear" command, you can view your history with the "hist" command, e.g.
-```console
-hist
-```
-# functions that require packages
-Some functions use packages that aren't in the standard library, an example of one is scipy:
+#### Statistics
 ```python
-z2p(1) # approx. 0.84
-p2z(.84) # approx. 1
-# these were two examples of scipy's cdf and ppf functions, respectively
+binomial(0.25, 5, 2)
+# output: 0.263671875
+uncertainty([3, 19, 20, 5])
+# output: 8.5
 ```
+#### Converting Units
 ```python
-# stdev function uses statistics package
-stdev([1, 2, 3]) # equals 1
-# stdev([1, 2, 3], 'pop') for population
-# stdev uses sample by default
+temperature(68, 'f', 'c')
+# output: 20
+volume(1, 'gal', 'c')
+# output: 16
 ```
-Sample standard deviation formula is given below <br>
-$\huge{ s = \sqrt{\frac{\Sigma_{i=1}^{N}(x_i - \bar{x})^2}{N - 1}} }$
 
+
+# Contributing
+Pull requests are unlikely to be merged, but fixes such as typos or grammar/spelling mistakes are more likely to be merged.<br>
+## Bug Reports
+Bugs can be reported via creating a new issue.<br>
+## Misc.
+Read [Discussions](https://github.com/xyzpw/calculator.py/discussions/2) for additional info.
