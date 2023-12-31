@@ -11,6 +11,8 @@ import argparse
 import sympy
 import decimal
 import sys
+import cmath
+import numpy
 
 sys.set_int_max_str_digits(0) # allowing very large numbers
 
@@ -18,14 +20,22 @@ sympy.init_printing(pretty_print=True, use_unicode=True)
 
 uiSession = prompt_toolkit.PromptSession()
 parse = argparse.ArgumentParser()
-parse.add_argument("-e", help="Equation to solve", type=str)
+parse.add_argument("-e", help="solve expression", type=str)
+parse.add_argument("--no-symbols", help="don't use custom symbols", action="store_true")
+parse.add_argument("--report-errors", help="report all errors", action="store_true")
 args = parse.parse_args()
 
 var_args = vars(args)
 
 warnings.filterwarnings("ignore")
+warnings.filterwarnings("default", category=DeprecationWarning)
 
-exitAttempts = 0
+clear = lambda: os.system("cls" if os.name=="nt" else "clear")
+# The below method clears the screen along with the scrollback buffer. Most terminals do this by default.
+# Comment the above clear function and uncomment the bottom one if you want to change which one to use.
+# clear = lambda: os.system("printf '\e[3J' && clear")
+
+exitAttempt = False
 
 history = []
 
@@ -40,6 +50,7 @@ class Symbols:
     phi = '\u03d5'
     pi = '\u03c0'
     divide = '\u00f7'
+    infinity = '\u221e'
     class Radicals:
         sqrt = '\u221a'
         cbrt = '\u221b'
@@ -47,6 +58,13 @@ class Symbols:
         fourth = '\u00bc'
         half = '\u00bd'
         quarter3 = '\u00be'
+
+class StringedNumber:
+    def __init__(self, num, returnAsInt=False):
+        if returnAsInt:
+            self.num = int(num)
+        else:
+            self.num = str(num)
 
 # constants
 c = 299792458
@@ -57,21 +75,46 @@ e = math.e
 h = 6.62607015e-34
 k = 1.380649e-23
 phi = (1 + math.sqrt(5)) / 2
+NA = 6.02214076 * 10**23
+ke = 8.9875517923e+9
+e0 = 8.8541878128e-12
+R = 8.31446261815324
 
-constants = {"c": f"Speed of light {c:,} m/s",
+constants = {
+    "c": f"Speed of light {c:,} m/s",
     "g": f"Standard gravity {g} m/s{Symbols.squared}",
-    "G": f"Gravitational constant {G} N{Symbols.cdot}m{Symbols.squared}/kg{Symbols.squared}",
-    "h": f"Planck's constant {h} J/Hz",
-    "k": f"Boltzmann constant {k} J/K",
+    "G": f"Gravitational constant {G} N{Symbols.cdot}m{Symbols.squared}{Symbols.cdot}kg{Symbols.negative}{Symbols.squared}",
+    "h": f"Planck constant {h} J{Symbols.cdot}Hz{Symbols.negative}{Symbols.first}",
+    "kb": f"Boltzmann constant {k} J{Symbols.cdot}K{Symbols.negative}{Symbols.first}",
     "phi": f"Golden ratio {phi}",
+    "NA": f"Avogadro constant {NA} mol{Symbols.negative}{Symbols.first}",
+    "ke": f"Coulomb constant {ke} N{Symbols.cdot}m{Symbols.squared}{Symbols.cdot}C{Symbols.negative}{Symbols.squared}",
+    "e0": f"Electric constant {e0} F{Symbols.cdot}m{Symbols.negative}{Symbols.first}",
+    "R": f"Gas constant {R} J{Symbols.cdot}K{Symbols.negative}{Symbols.first}{Symbols.cdot}mol{Symbols.negative}{Symbols.first}",
 }
 
-# functions
+# function aliasing
 log10 = math.log10
 ln = math.log
 log2 = math.log2
 cbrt = math.cbrt
-sqrt = math.sqrt
+def sqrt(num):
+    """Returns the square root of a number.
+    Usage:
+        sqrt(num)
+    Examples:
+        sqrt(9) -> 3
+        sqrt(-1) -> i
+    Parameters:
+        num (int,float): number for which the square root will be calculated"""
+    if num > 0:
+        result = math.sqrt(num)
+        if result.is_integer(): result = int(result)
+        return result
+    elif num < 0:
+        return cmath.sqrt(num)
+    elif num == 0:
+        return 0
 exp = math.exp
 erf = math.erf
 erfc = math.erfc
@@ -84,12 +127,40 @@ z2p = scipy.stats.norm.cdf
 p2z = scipy.stats.norm.ppf
 fact, factorial = math.factorial, math.factorial
 normaltest = scipy.stats.normaltest
-product, prod = scipy.prod, scipy.prod
+product, prod = numpy.prod, numpy.prod
 gmean = scipy.stats.gmean
 pstdev = statistics.pstdev
-ptp = scipy.ptp
+def ptp(numberMultiSet):
+    """Returns the range of a multiset of numbers. The function "ptp" stands for "peak to peak."
+    Usage:
+        ptp(numberMultiSet)
+    Example:
+        ptp([4, 5, 6]) -> 2
+    Parameters:
+        numberMultiSet (array): multiset of numbers used to calculate the range"""
+    if isinstance(numberMultiSet, list) == False:
+        raise TypeError("must be array")
+    return max(numberMultiSet) - min(numberMultiSet)
+inf, infinity = math.inf, math.inf
+isprime = sympy.isprime
+
+def showhelp(functionName=None):
+    """Shows info about a function.
+    Usage:
+        showhelp(functionName)
+    Examples:
+        showhelp()
+        showhelp(log)
+    Parameters:
+        functionName (function): name of function to display help"""
+    if functionName == None:
+        return showhelp.__doc__
+    elif callable(functionName):
+        return functionName.__doc__
 
 def isNumber(value):
+    if isinstance(value, bool):
+        return False
     if str(value).isnumeric():
         return True
     else:
@@ -100,46 +171,80 @@ def isNumber(value):
             return False
 
 
-def useSymbols(equation):
-    equation = str(equation)
+def useSymbols(expression):
+    if var_args.get("no_symbols"):
+        return expression
+    expression = str(expression)
     replacements = {
-        "\*": Symbols.cdot,
-        "sqrt": Symbols.Radicals.sqrt,
-        "cbrt": Symbols.Radicals.cbrt,
-        "\(1/2\)": Symbols.Fractions.half,
-        "\(1/4\)": Symbols.Fractions.fourth,
-        "\(3/4\)": Symbols.Fractions.quarter3,
-        "phi": Symbols.phi,
-        "pi": Symbols.pi,
-        "/": Symbols.divide,
+        r"\*": Symbols.cdot,
+        r"(?<!\.)\bsqrt": Symbols.Radicals.sqrt,
+        r"(?<!\.)\bcbrt": Symbols.Radicals.cbrt,
+        r"(?:(?:(?<=[\+\-\*\/\,\(\^\s])|\A)\(1/2\)(?:(?=(?:[\+\-\*\/\,\)\^\s]|\Z))))": Symbols.Fractions.half,
+        r"(?:(?:(?<=[\+\-\*\/\,\(\^\s])|\A)\(1/4\)(?:(?=(?:[\+\-\*\/\,\)\^\s]|\Z))))": Symbols.Fractions.fourth,
+        r"(?:(?:(?<=[\+\-\*\/\,\(\^\s])|\A)\(3/4\)(?:(?=(?:[\+\-\*\/\,\)\^\s]|\Z))))": Symbols.Fractions.quarter3,
+        r"(?:(?<=^)|(?<=[\s\+\-\*\/|\^|\(|\,]))phi(?:(?=$)|(?=[\s\+\-\*\/\|\^|\)|\,]))": Symbols.phi,
+        r"(?:(?<=^)|(?<=[\s\+\-\*\/|\^|\(|\,]))pi(?:(?=$)|(?=[\s\+\-\*\/\|\^|\)|\,]))": Symbols.pi,
+        r"/": Symbols.divide,
+        r"(?:(?<=^)|(?<=[\s\+\-\*\/|\^|\(|\,]))(infinity|inf)(?:(?=$)|(?=[\s\+\-\*\/\|\^|\)|\,]))": Symbols.infinity,
+        r"\babs\((?P<expression>[^\(\)]*[^\(\)])\)": r"|\g<expression>|",
+        r"(?<!\.)(\bfact|\bfactorial|^fact|^factorial)\((?P<num>\d+)\)(?!\S)": r"(\g<num>)!",
     }
     for sym, val in replacements.items():
-        equation = re.sub(sym, val, equation)
-    return equation
+        expression = re.sub(sym, val, expression)
+    return expression
 
-def addToHistory(equation, result, includeAll=False):
+def addToHistory(expression, result, includeAll=False, includeAllWithSymbols=False):
     global history
     if isNumber(result) and isinstance(result, (int, float)):
         # remove last equation from history if the max. limit is reached
         if len(history) >= 40:
             history.pop(0)
-        if result >= 1e18 and result < sys.float_info.max:
-            appendText = f"{useSymbols(equation)} = {result:e}"
+        if result >= 1e16 and result < sys.float_info.max:
+            appendText = f"{useSymbols(expression)} = {result:e}"
+            if result == inf:
+                appendText = f"{useSymbols(expression)} = {useSymbols(result)}"
             if appendText in history:
                 history.remove(appendText)
             history.append(appendText)
         else:
-            appendText = f"{useSymbols(equation)} = {result:,}"
+            appendText = f"{useSymbols(expression)} = {result:,}"
+            if result == inf:
+                appendText = f"{useSymbols(expression)} = {useSymbols(result)}"
             if appendText in history:
                 history.remove(appendText)
             history.append(appendText)
+    elif isinstance(result, complex):
+        if len(history) >= 40:
+            history.pop(0)
+        if result.real == 0:
+            result = "{}i".format(result.imag)
+        else:
+            result = "{} + {}i".format(result.real, result.imag)
+        appendText = f"{useSymbols(expression)} = {result}"
+        if appendText in history:
+            history.remove(appendText)
+        history.append(appendText)
     elif isinstance(result, list):
-        appendText = f"{useSymbols(equation)} = {result}"
+        if len(history) >= 40:
+            history.pop(0)
+        appendText = f"{useSymbols(expression)} = {result}"
+        if appendText in history:
+            history.remove(appendText)
+        history.append(appendText)
+    elif isinstance(result, bool):
+        if len(history) >= 40:
+            history.pop(0)
+        result = str(result).lower()
+        appendText = f"{useSymbols(expression)} = {result}"
         if appendText in history:
             history.remove(appendText)
         history.append(appendText)
     elif includeAll:
-        appendText = f"{equation} = {result}"
+        if len(history) >= 40:
+            history.pop(0)
+        if includeAllWithSymbols:
+            expression = useSymbols(expression)
+        appendText = f"{expression} = {result}"
         if appendText in history:
             history.remove(appendText)
         history.append(appendText)
@@ -148,93 +253,195 @@ def fixUI(userValue):
     global history
     match userValue.lower():
         case "history" | "hist":
-            print(*history, sep='\n')
+            if history != []:
+                print(*history, sep='\n')
+            else:
+                print("history is currently empty")
             return None
         case "clear history" | "clear hist":
+            if history == []:
+                print("history is already empty")
             history = []
             return None
         case "constant" | "constants" | "const":
             for key, value in constants.items():
-                print(f"{key} => {value}")
+                print(f"{key} = {value}")
             return None
         case "exit":
             exit()
-    userValue = re.sub('\^', "**", userValue)
+    checkingHistoryPattern = re.compile(r"^(?:hist|history) (?P<size>\d+)$")
+    if bool(re.search(checkingHistoryPattern, userValue)):
+        if len(history) == 0:
+            print("history is currently empty")
+            return None
+        returnSize = int(re.search(checkingHistoryPattern, userValue).group("size"))
+        if returnSize >= len(history): returnSize = len(history)
+        if returnSize <= 0:
+            raise ValueError("return size too low")
+        print(*history[len(history)-returnSize:len(history)], sep='\n')
+        return None
+    userValue = re.sub(r'\^', "**", userValue)
+    userValue = re.sub(r"\b(?P<num>\d+)i\b", r"\g<num>j", userValue)
+    userValue = re.sub(r"(?:(?<=[\s\+\-\*\/\,\(])|(?:^))(?:(?P<num>\d+)!(?:(?=[\s\+\-\*\/\,\)]|(?:$))))", r"factorial(\g<num>)", userValue)
     return userValue
 
 # more functions
 def deg2rad(deg):
-    return math.pi / 180 * deg
+    """Returns degrees to radians.
+    Usage:
+        deg2rad(deg)
+    Example:
+        deg2rad(180) -> 3.141...
+    Parameters:
+        deg (int): degrees"""
+    return deg * (pi / 180)
 
 def rad2deg(rad):
-    return 180 / math.pi * rad
+    """Returns radians to degrees.
+    Usage:
+        rad2deg(rad)
+    Example:
+        rad2deg(pi) -> 180
+    Parameters:
+        rad (int): radians"""
+    return rad * (180 / pi)
 
-def log(base, n): return math.log10(n) / math.log10(base)
+def log(base, n):
+    """Returns the log of a number.
+    Usage:
+        log(base, n)
+    Example:
+        log(2, 16) -> 4
+    Parameters:
+        base (int): the base of the logarithm
+        n (int):    the number for which the logarithm needs to be calculated"""
+    return math.log10(n) / math.log10(base)
 
-def root(nth, n): return pow(n, 1/nth)
+def root(nth, n):
+    """Returns the nth root.
+    Usage:
+        root(nth, n)
+    Example:
+        root(2, 9) -> 3
+    Parameters:
+        nth (int): root value
+        n (int):   the number for which the nth root needs to be found"""
+    result = pow(n, 1/nth)
+    if result.is_integer():
+        return int(result)
+    return result
 
-def roundup(n, prec=0):
-    """
-    Round 5 up
-    roundup(2.5, prec=0) = 3
-    """
-    n = n * 10**prec
-    result = decimal.Decimal(n).quantize(0, decimal.ROUND_HALF_UP)
+def roundup(num, prec=0):
+    """Rounds 5 up.
+    Usage:
+        roundup(num, prec=0)
+    Example:
+        roundup(2.5, 0) -> 3
+    Parameters:
+        num (float): number to round
+        prec (int):  number of decimal places to round"""
+    num = num * 10**prec
+    result = decimal.Decimal(num).quantize(0, decimal.ROUND_HALF_UP)
     result /= 10**prec
+    if prec == 0:
+        return int(result)
     return float(result)
 
-def rounddown(n, prec=0):
-    """
-    Round 5 down
-    rounddown(2.5, prec=0) = 2
-    """
-    n = n * 10**prec
-    result = decimal.Decimal(n).quantize(0, decimal.ROUND_HALF_DOWN)
+def rounddown(num, prec=0):
+    """Rounds 5 down.
+    Usage:
+        rounddown(num, prec=0)
+    Example:
+        rounddown(2.5, 0) -> 2
+    Parameters:
+        num (float): number to round
+        prec (int):  number of decimal places to round"""
+    num = num * 10**prec
+    result = decimal.Decimal(num).quantize(0, decimal.ROUND_HALF_DOWN)
     result /= 10**prec
+    if prec == 0:
+        return int(result)
     return (float(result))
 
-def nCr(n, r): return math.factorial(n) // ( math.factorial(r) * math.factorial(n - r) )
+def nCr(n, r):
+    """Number of combinations.
+    Usage:
+        nCr(n, r)
+    Example:
+        nCr(5, 2) -> 10
+    Parameters:
+        n (int): total number of items
+        r (int): number of items to be chosen"""
+    return math.factorial(n) // ( math.factorial(r) * math.factorial(n - r) )
 
-def nPr(n, r): return math.factorial(n) // math.factorial(n - r)
+def nPr(n, r):
+    """Number of permutations.
+    Usage:
+        nPr(n, r)
+    Example:
+        nPr(5, 2) -> 20
+    Parameters:
+        n (int): total number of items
+        r (int): number of items to be chosen"""
+    return math.factorial(n) // math.factorial(n - r)
 
 def binomial(p, n, x):
-    """
-    Usage: binomial(p, n, x)
-    p => probability of success
-    n => number of trials
-    x => number of successes
-    """
+    """Finds binomial probability.
+    Usage:
+        binomial(p, n, x)
+    Example:
+        binomial(0.5, 3, 1) -> 0.375
+    Parameters:
+        p (float): probability of success
+        n (int):   number of trials
+        x (int):   number of successes"""
     numberOfCombinations = nCr(n, x)
     q = 1 - p
     binomialProbability = numberOfCombinations * p**x * q**(n - x)
     return binomialProbability
 
 def integrate(f, lower=None, upper=None, pretty=True):
-    """
-    Uses sympy.integrate with custom options
-    Note: When integrating without limits, you add the '+ C' at the end.
+    """Uses sympy's `integrate` function to compute definite or indefinite integrals.
+    Usage:
+        integrate(f, lower=None, upper=None, pretty=True)
+    Examples:
+        integrate("2 * x", 1, 10) -> 99
+        integrate("2 * x") -> x**2
+    Parameters:
+        f (str):                  expression to integrate
+        lower, optional (int):    lower end of integral
+        upper, optional (int):    upper end of integral
+        pretty, optional (bool):  pretty print mode
     """
     if lower != None and upper != None:
         result = sympy.integrate(f, ('x', lower, upper))
-        newEquation = f"integrate({f}, lower={lower}, upper={upper})"
-        addToHistory(newEquation, str(result), includeAll=True)
+        newExpression = f"integrate({f}, lower={lower}, upper={upper})"
+        addToHistory(newExpression, str(result), includeAll=True)
         if pretty:
             return sympy.pprint(result)
         else:
             return result
     if lower == None and upper == None:
         result = sympy.integrate(f)
-        newEquation = f"integrate({f})"
-        addToHistory(newEquation, str(result), includeAll=True)
+        newExpression = f"integrate({f})"
+        addToHistory(newExpression, str(result), includeAll=True)
         if pretty:
             return sympy.pprint(result)
         else:
             return result
-    return "Error"
+    raise ValueError("both upper and lower must have values")
 def integral(f, pretty=True):
+    """Uses sympy's `Integral` function to represent unevaluated integrals.
+    Usage:
+        integral(f, pretty=True)
+    Example:
+        integral("2 * x") -> Integral(2*x, x)
+    Parameters:
+        f (str):                 expression to represent
+        pretty, optional (bool): pretty print mode"""
     result = sympy.Integral(f)
-    newEquation = f"integral({f})"
-    addToHistory(newEquation, str(result), includeAll=True)
+    newExpression = f"integral({f})"
+    addToHistory(newExpression, str(result), includeAll=True)
     if pretty:
         return sympy.pprint(result)
     elif not pretty:
@@ -242,77 +449,137 @@ def integral(f, pretty=True):
     return "Error"
 
 def lim(f, x):
+    """Uses sympy's `limit` function to compute the limit of `f` at the point `x`.
+    Usage:
+        lim(f, x)
+    Example:
+        lim("x**2 + 2*x - 4", 5) -> 31
+    Parameters:
+        f (str):           expression representing the variable in the limit
+        x (int,float,str): the value toward which `x` tends"""
     result = float( sympy.limit(f, 'x', x) )
     return result
 
 def Lim(f, x, pretty=True):
+    """Uses sympy's `Limit` function to represent an unevaluated limit.
+    Usage:
+        Lim(f, x, pretty=True)
+    Example:
+        Lim("x**2 + 2*x - 4", 5)
+    Parameters:
+        f (str):                 expression to represent
+        x (int,float,str):       value for `x`
+        pretty, optional (bool): pretty print mode"""
     if pretty:
         result = sympy.pprint(sympy.Limit(f, 'x', x))
     else:
         result = sympy.Limit(f, 'x', x)
     return result
 
-def trunc(n, p=0):
-    if n == 0:
+def trunc(num, prec=0):
+    """Truncates a number.
+    Usage:
+        trunc(num, prec=0)
+    Example:
+        trunc(1.2498, 2) -> 1.24
+    Parameters:
+        num (float): number of which to truncate
+        prec (int):  number of decimal places to keep"""
+    if isinstance(num, float) == False:
+        raise TypeError("number must be float")
+    decimals = re.sub(r"^(?:-?\d+\.|\.|-\.)(?P<decimals>\d+)$", r"\g<decimals>", str(num))
+    if prec > len(decimals):
+        return num
+    if prec < 0:
+        raise ValueError("precision is below zero")
+    elif prec == 0:
+        return int(num)
+    if num == 0:
         return 0
-    elif n > 0:
-        return math.floor(n * 10**p) / 10**p
-    elif n < 0:
-        return math.ceil(n * 10**p) / 10**p
+    elif num > 0:
+        return math.floor(num * 10**prec) / 10**prec
+    elif num < 0:
+        return math.ceil(num * 10**prec) / 10**prec
     return None
 
 def zscore(score, mean, sd):
-    """
-    zscore(score, mean, sd)
-    """
+    """Returns the z-score of a value given the mean and standard deviation.
+    Usage:
+        zscore(score, mean, sd)
+    Example:
+        zscore(160, 100, 15) -> 4
+    Parameters:
+        score (int,float): value of which to calculate the z-score
+        mean (int,float):  mean value of data
+        sd (int,float):    standard deviation of data"""
     return ((score - mean) / sd)
 
 def z2pRange(z1, z2):
-    """
-    Percentile between two Z-scores
-    z2pRange(z1, z2)
-    z1 is the lower end and z2 is the upper end
-    """
+    """Returns the normal distribution cumulative distribution function between two values. Uses scipy's `stats.norm.cdf` function.
+    Usage:
+        z2pRange(z1, z2)
+    Example:
+        z2pRange(-1, 1) -> 0.68...
+    Parameters:
+        z1 (int,float): lower end of value
+        z2 (int,float): upper end of value"""
     p = scipy.stats.norm.cdf(z2) - scipy.stats.norm.cdf(z1)
     return p
 
 def p2zRange(p1, p2):
-    """
-    Z-score between two percentiles
-    p2zRange(p1, p2)
-    p1 is the lower end and p2 is the upper end
-    """
+    """Returns the normal distribution percent point function between two values. Uses scipy's `stats.norm.ppf` function.
+    Usage:
+        p2zRange(p1, p2)
+    Example:
+        p2zRange(0.5, 0.84) -> 0.994...
+    Parameters:
+        p1 (int,float): lower end probability
+        p2 (int,float): upper end probability"""
     z = scipy.stats.norm.ppf(p2) - scipy.stats.norm.ppf(p1)
     return z
 
-def uncertainty(numberSet):
-    """
-    Uncertainty of a number array (range over 2)
-    Note: Uncertainty is usually rounded to 1 significant figure
-    uncertainty(numberSet)
-    """
-    numberSetRange = max(numberSet) - min(numberSet)
-    return numberSetRange / 2
+def uncertainty(numberMultiset):
+    """Returns the uncertainty of a multiset of numbers.
+    Usage:
+        uncertainty(numberMultiSet)
+    Example:
+        uncertainty([1, 2, 3]) -> 1
+    Parameters:
+        numberMultiSet (array): number multiset of which to calculate the uncertainty
+    Note:
+        Uncertainty results are commonly rounded to 1 significant figure."""
+    numberMultiSetRange = max(numberMultiset) - min(numberMultiset)
+    result = numberMultiSetRange / 2
+    if result.is_integer():
+        return int(result)
+    return result
 
 def distance(n, unit1, unit2):
-    """
-        Convert units, e.g. distance(1, 'm', 'ft') ~ 3.28
-        pm => Picometers
-        nm => Nanometers
-        um => Micrometers
-        mm => Millimeters
-        cm => Centimeters
-        dm => Decimeters
-        km => Kilometers
-        ly => Light years
-        in => inches
-        ft => feet
-        yd => yards
-        mi => miles
-        au => astronomical unit
-        pc = parsec
-        planck => planck length
-    """
+    """Returns the distance of a value converted into another unit.
+    Usage:
+        distance(n, unit1, unit2)
+    Example:
+        distance(1, "m", "ft") -> 3.28...
+    Parameters:
+        n (int,float): initial value
+        unit1 (str):   distance unit being used
+        unit2 (str):   unit to convert to
+    Units:
+        pm -> picometers
+        nm -> nanometers
+        um -> micrometers
+        mm -> millimeters
+        cm -> centimeters
+        dm -> decimeters
+        km -> kilometers
+        ly -> light years
+        in -> inches
+        ft -> feet
+        yd -> yards
+        mi -> miles
+        au -> astronomical unit
+        pc -> parsec
+        planck -> planck length"""
     units = {
         "m": 1,
         "pm": 1/1e12,
@@ -336,8 +603,16 @@ def distance(n, unit1, unit2):
     return n_meters / units.get(unit2)
 
 def mass(n, unit1, unit2):
-    """
-        Convert units, e.g. mass(1, 'kg', 'lb') ~ 2.204622
+    """Returns the mass of a value converted into another unit.
+    Usage:
+        mass(n, unit1, unit2)
+    Example:
+        mass(1, "kg", "lb") -> 2.2...
+    Parameters:
+        n (int,float):  initial value
+        unit1 (str):    mass unit being used
+        unit2 (str):    unit to convert to
+    Units:
         kg => kilograms
         ug => micrograms
         mg => milligrams
@@ -348,8 +623,7 @@ def mass(n, unit1, unit2):
         lb => pound
         st => stone
         ton => US ton
-        planck => planck mass
-    """
+        planck => planck mass"""
     units = {
         "kg": 1,
         "ug": 1/1e9,
@@ -368,16 +642,24 @@ def mass(n, unit1, unit2):
     return n_kg / units.get(unit2)
 
 def time(n, unit1, unit2):
-    """
-    Convert time e.g. time(1, 'min', 's') = 60
-    us => microsecond
-    ms => millisecond
-    min => minute
-    h => hour
-    d => days
-    wk => weeks
-    a => julian year
-    """
+    """Returns time converted into another unit.
+    Usage:
+        time(n, unit1, unit2)
+    Example:
+        time(1, 'min', 's') -> 60
+    Parameters:
+        n (int,float):  initial value
+        unit1 (str):    time unit being used
+        unit2 (str):    unit to convert to
+    Units:
+        us -> microsecond
+        ms -> millisecond
+        min -> minute
+        h -> hour
+        d -> days
+        wk -> weeks
+        a -> julian year
+        planck -> planck time"""
     units = {
         "s": 1,
         "us": 1/1e6,
@@ -387,30 +669,38 @@ def time(n, unit1, unit2):
         "d": 86400,
         "wk": 86400*7,
         "a": 365.25*86400,
+        "planck": 5.391247E-44,
     }
     multiplier = units.get(unit1) # multiply by this to get seconds
     n_s = n * multiplier
     return n_s / units.get(unit2)
 
 def volume(n, unit1, unit2):
-    """
-    Convert volume e.g. volume(1, 'bbl', 'gal') = 42
-    l => liter
-    gtt => drop
-    ml => milliliters
-    tsp => metric teaspoon
-    tbsp => metric tablespoon
-    imp_floz => imperial fluid ounce
-    imp_qt => imperial quart
-    floz => US fluid ounce
-    c => US cup
-    pt => US pint
-    imp_pt => imperial pint
-    qt => US quart
-    gal => US gallon
-    imp_gal => imperial gallon
-    bbl => oil barrel
-    """
+    """Returns a volume value converted into another unit.
+    Usage:
+        volume(n, unit1, unit2)
+    Example:
+        volume(1, 'bbl', 'gal') -> 42
+    Parameters:
+        n (int,float):  initial value
+        unit1 (str):    volume unit being used
+        unit2 (str):    unit to convert to
+    Units:
+        l -> liter
+        gtt -> drop
+        ml -> milliliters
+        tsp -> metric teaspoon
+        tbsp -> metric tablespoon
+        imp_floz -> imperial fluid ounce
+        imp_qt -> imperial quart
+        floz -> US fluid ounce
+        c -> US cup
+        pt -> US pint
+        imp_pt -> imperial pint
+        qt -> US quart
+        gal -> US gallon
+        imp_gal -> imperial gallon
+        bbl -> oil barrel"""
     units = {
         "l": 1,
         "gtt": 0.00005,
@@ -432,96 +722,639 @@ def volume(n, unit1, unit2):
     n_l = n * multiplier
     return n_l / units.get(unit2)
 
-def quantile(numberSet, p, method='weibull'):
-    return scipy.quantile(numberSet, p, method=method)
+def quantile(numberMultiSet, p, method='weibull'):
+    """Returns the value of a given percentile.
+    Usage:
+        quantile(numberMultiSet, p, method='weibull')
+    Example:
+        quantile([1, 8, 4, 9], 0.5) -> 6
+    Parameters:
+        numberMultiSet (array):       multiset of numbers used to calculate the value
+        p (float):                    percentile as a decimal (0 to 1)
+        method, optional (str):       method used with numpy's `quantile` function. See `numpy.quantile` for more info."""
+    result = numpy.quantile(numberMultiSet, p, method=method)
+    return result
 
-def score2p(numberSet, score, method='weak'):
-    return scipy.stats.percentileofscore(numberSet, score, kind=method) / 100
+def score2p(numberMultiSet, score, method='weak'):
+    """Returns the percentile of a given value as a decimal.
+    Usage:
+        score2p(numberMultiSet, score, method='weak')
+    Example:
+        score2p([1, 8, 4, 9], 6) -> 0.5
+    Parameters:
+        numberMultiSet (array): multiset of numbers used to calculate the percentile decimal
+        score (int,float):      score of which to calculate the percentile
+        method, optional (str): method used with scipy's `percentileofscore` function. See `scipy.stats.percentileofscore` for more info."""
+    return scipy.stats.percentileofscore(numberMultiSet, score, kind=method) / 100
 
-def outliers(numberSet):
-    outlierSet = []
-    q1 = scipy.quantile(numberSet, .25, method='weibull')
-    q3 = scipy.quantile(numberSet, .75, method='weibull')
+def outliers(numberMultiSet):
+    """Returns a list of outliers in a multiset of numbers based on the 1.5 IQR rule.
+    Usage:
+        outliers(numberMultiSet)
+    Example:
+        outliers([1, 9, 4, 200, 5, 10]) -> [200]
+    Parameters:
+        numberMultiSet (array): multiset of numbers used to calculate the outliers"""
+    outlierMultiSet = []
+    q1 = quantile(numberMultiSet, .25, method='weibull')
+    q3 = quantile(numberMultiSet, .75, method='weibull')
     iqr = q3 - q1
     lowerFence = q1 - 1.5 * iqr
     higherFence = q3 + 1.5 * iqr
-    for num in numberSet:
+    for num in numberMultiSet:
         if num < lowerFence or num > higherFence:
-            outlierSet.append(num)
-    return outlierSet
+            outlierMultiSet.append(num)
+    return outlierMultiSet
 
-def IQR(numberSet):
-    q1 = scipy.quantile(numberSet, .25, method='weibull')
-    q3 = scipy.quantile(numberSet, .75, method='weibull')
+def IQR(numberMultiSet):
+    """Returns the interquartile range (IQR).
+    Usage:
+        IQR(numberMultiSet)
+    Example:
+        IQR([1, 100, 90, 50]) -> 84.25
+    Parameters:
+        numberMultiSet (array): multiset of numbers used to calculate the IQR"""
+    q1 = quantile(numberMultiSet, .25, method='weibull')
+    q3 = quantile(numberMultiSet, .75, method='weibull')
     iqr = q3 - q1
     return iqr
 
-def lowerfence(numberSet):
-    q1 = scipy.quantile(numberSet, .25, method='weibull')
-    q3 = scipy.quantile(numberSet, .75, method='weibull')
+def lowerfence(numberMultiSet):
+    """Returns the lower fence of a multiset of numbers.
+    Usage:
+        lowerfence(numberMultiSet)
+    Example:
+        lowerfence([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) -> -7
+    Parameters:
+        numberMultiSet (array): multiset of numbers used to calculate the lowerfence"""
+    q1 = quantile(numberMultiSet, .25, method='weibull')
+    q3 = quantile(numberMultiSet, .75, method='weibull')
     iqr = q3 - q1
     return q1 - 1.5 * iqr
 
-def upperfence(numberSet):
-    q1 = scipy.quantile(numberSet, .25, method='weibull')
-    q3 = scipy.quantile(numberSet, .75, method='weibull')
+def upperfence(numberMultiSet):
+    """Returns the upper fence of a multiset of numbers.
+    Usage:
+        upperfence(numberMultiSet)
+    Example:
+        upperfence([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) -> 17
+    Parameters:
+        numberMultiSet (array): multiset of numbers used to calculate the upperfence"""
+    q1 = quantile(numberMultiSet, .25, method='weibull')
+    q3 = quantile(numberMultiSet, .75, method='weibull')
     iqr = q3 - q1
     return q3 + 1.5 * iqr
 
-def stdev(numberSet, population_type="sample"):
+def stdev(numberMultiSet, population_type="sample"):
+    """Returns the standard deviation of a multiset of numbers.
+    Usage:
+        stdev(numberMultiSet, population_type='sample')
+    Examples:
+        stdev([1, 2, 3]) -> 1
+        stdev([1, 2, 3], population_type='population') -> 0.816...
+    Parameters:
+        numberMultiSet (array):          multiset of numbers used to calculate the standard deviation
+        population_type, optional (str): type of population
+    Population Types:
+        sample
+        population or pop"""
+    if isinstance(numberMultiSet, list) == False:
+        raise TypeError("number multiset must be an array")
     match population_type:
         case "sample":
-            return statistics.stdev(numberSet)
+            return statistics.stdev(numberMultiSet)
         case "population" | "pop":
-            return statistics.pstdev(numberSet)
+            return statistics.pstdev(numberMultiSet)
 
-def tan(n, unit='degrees'):
-    deg = unit.lower().startswith('deg')
-    if deg: n = deg2rad(n)
-    return math.tan(n)
-def sin(n, unit='degrees'):
-    deg = unit.lower().startswith('deg')
-    if deg: n = deg2rad(n)
-    return math.sin(n)
-def cos(n, unit='degrees'):
-    deg = unit.lower().startswith('deg')
-    if deg: n = deg2rad(n)
-    return math.cos(n)
-def cot(n, unit='degrees'):
-    deg = unit.lower().startswith('deg')
-    if deg: n = deg2rad(n)
-    return 1 / math.tan(n)
-def csc(n, unit='degrees'):
-    deg = unit.lower().startswith('deg')
-    if deg: n = deg2rad(n)
-    return 1 / math.sin(n)
-def sec(n, unit='degrees'):
-    deg = unit.lower().startswith('deg')
-    if deg: n = deg2rad(n)
-    return 1 / math.cos(n)
+def clock(clockTime, unit='s'):
+    """Returns time or time into day.
+    Usage:
+        clock(clockTime, unit='s')
+    Examples:
+        clock("20:30:00") -> 73,800 # seconds into the day
+        clock("21:30:00", 'h') -> 9.5 # hours into the day
+        clock(86395) -> "23:59:55"
+    Parameters:
+        clockTime (str,int,float): time in 24-hour format or time into the day
+        unit, optional (str):      unit of time
+    Units:
+        us -> microsecond
+        ms -> millisecond
+        min -> minute
+        h -> hour
+        d -> days
+        wk -> weeks
+        a -> julian year
+        planck -> planck time"""
+    if isinstance(clockTime, (int, float)):
+        clockTime = time(clockTime, unit, 's')
+        if clockTime > 86400 or clockTime < 0:
+            raise ValueError("invalid time range")
+        hour = int(clockTime // 3600)
+        minute = int((clockTime - (hour * 3600)) // 60)
+        second = clockTime - ((hour * 3600) + (minute * 60))
+        second = trunc(second, 3) if int(second) < float(second) else int(second)
+        clockHands = {"hour": hour, "minute": minute, "second": second}
+        for hand in list(clockHands.keys()):
+            curVal = clockHands.get(hand)
+            if curVal < 10:
+                clockHands[hand] = f"0{str(curVal)}"
+        clockTime = f"{clockHands.get('hour')}:{clockHands.get('minute')}:{clockHands.get('second')}"
+        return StringedNumber(clockTime)
+    clockTime = clockTime.split(':')
+    if len(clockTime) not in range(2, 4):
+        raise ValueError("incorrect time-format")
+    elif len([val for val in clockTime if val.isnumeric()]) != len(clockTime):
+        raise ValueError("digits must be integers")
+    second = 0 if len(clockTime) == 2 else int(clockTime[2])
+    hour, minute = int(clockTime[0]), int(clockTime[1])
+    correctRange = (hour <= 24 >= 0) and (minute < 60 >= 0) and (second < 60 >= 0)
+    if correctRange == False:
+        raise ValueError("incorrect time range")
+    elif hour == 24:
+        if (minute + second > 0):
+            raise ValueError("time exceeds 24 hours")
+    timeElapse = hour * 3600 + (minute * 60) + second
+    timeElapse = time(timeElapse, 's', unit)
+    return timeElapse
+
+def storage(n, unit1, unit2):
+    """Returns data sizes converted into another unit.
+    Usage:
+        storage(n, unit1, unit2)
+    Information:
+        Using lowercase "b" will use bits instead of bytes.
+    Examples:
+        storage(1000, 'B', 'kB') -> 1
+        storage(1, 'B', 'b') -> 8
+    Parameters:
+        n (int,float): initial value
+        unit1 (str):   unit to convert from
+        unit2 (str):   unit to convert to
+    Units:
+        B -> byte
+        kB -> kilobyte
+        MB -> megabyte
+        GB -> gigabyte
+        TB -> terabyte
+        PB -> petabyte
+        EB -> exabyte
+        ZB -> zettabyte
+        YB -> yottabyte
+        RB -> ronnabyte
+        QB -> quettabyte
+        KiB -> kibibyte
+        MiB -> mebibyte
+        GiB -> gibibyte
+        TiB -> tebibyte
+        PiB -> pebibyte
+        EiB -> exbibyte
+        ZiB -> zebibyte
+        YiB -> yobibyte"""
+    units = {
+        "B": 1,
+        "kB": 1E3,
+        "MB": 1E3**2,
+        "GB": 1E3**3,
+        "TB": 1E3**4,
+        "PB": 1E3**5,
+        "EB": 1E3**6,
+        "ZB": 1E3**7,
+        "YB": 1E3**8,
+        "RB": 1E3**9,
+        "QB": 1E3**10,
+        "KiB": 1024,
+        "MiB": 1024**2,
+        "GiB": 1024**3,
+        "TiB": 1024**4,
+        "PiB": 1024**5,
+        "EiB": 1024**6,
+        "ZiB": 1024**7,
+        "YiB": 1024**8,
+    }
+    useBits = unit1.endswith('b')
+    returnBits = unit2.endswith('b')
+    if useBits:
+        unit1 = unit1.replace('b', 'B')
+    if returnBits:
+        unit2 = unit2.replace('b', 'B')
+    multiplier = units.get(unit1) # multiply by this to get bytes
+    if useBits:
+        multiplier *= (1/8)
+    n_bytes = n * multiplier
+    if returnBits:
+        return n_bytes / (units.get(unit2) * (1/8))
+    return n_bytes / units.get(unit2)
 
 
-clear = lambda: os.system("clear")
-# clear = lambda: os.system("clear && printf '\e[3J'") # alternative. Clears saved lines if your terminal doesn't do this by default
+def sigfig(num):
+    """Returns how many significant figures are in a number.
+    Usage:
+        sigfig(num)
+    Examples:
+        sigfig(100) -> 1
+        sigfig("100.00") -> 5
+        sigfig([100, 101, "100.0"]) -> {100: 1, 101: 3, '100.0': 4}
+    Parameters:
+        num (int,str,array): number(s) for which to count the number of sigfigs"""
+    if isinstance(num, (int, str, list)) == False:
+        raise TypeError("numbers must integers or strings")
+    isArray = isinstance(num, list)
+    if isArray:
+        sigFigList = {}
+        for n in num:
+            numString = str(n)
+            numIsInt = numString.isnumeric()
+            if numIsInt:
+                numString = re.sub(r"[\-\.]", '', numString)
+                numString = numString.lstrip('0')
+                numString = numString.rstrip('0')
+                sigFigs = len(numString)
+                sigFigList[n] = sigFigs
+            elif isNumber(n):
+                numString = re.sub(r"[\-\.]", '', numString)
+                numString = numString.lstrip('0')
+                sigFigs = len(numString)
+                sigFigList[n] = sigFigs
+        return sigFigList
+    numString = str(num)
+    numIsInt = numString.isnumeric()
+    if numIsInt:
+        if numString.endswith('.'):
+            sigFigs = len(numString.lstrip('0').replace('.', ''))
+            return sigFigs
+        numString = re.sub(r"[\-\.]", '', numString)
+        numString = numString.lstrip('0')
+        numString = numString.rstrip('0')
+        sigFigs = len(numString)
+        return sigFigs
+    elif isNumber(num):
+        numString = re.sub(r"[\-\.]", '', numString)
+        numString = numString.lstrip('0')
+        sigFigs = len(numString)
+        return sigFigs
+
+def roundsigfig(num, prec=1):
+    """Returns a number rounded by a certain amount of sigfigs.
+    Usage:
+        roundsigfig(num, prec=1)
+    Examples:
+        roundsigfig(1500, 1) -> 2000
+        roundsigfig("0.00259", 2) -> 0.0026
+    Parameters:
+        num (int,str): number of which to round sigfigs
+        prec (int):    number of sigfigs to round to
+    Note:
+        Rounding very large numbers can possibly lead to slight inaccuracies, for example, a number may end with '999...', this is because of how python handles floats.
+        It is recommended to learn how to round sigfigs without relying on calculators."""
+    if isinstance(num, (int, str)) == False:
+        raise TypeError("number must be integer or string")
+    if prec <= 0:
+        raise ValueError("precision is less than or equal to zero")
+    isNegative = float(num) < 0
+    num = abs(float(num))
+    numString = str(num)
+    initialSigFigs = sigfig(numString)
+    if initialSigFigs < prec:
+        raise ValueError("precision too high")
+    if prec == initialSigFigs:
+        if isNegative:
+            num = f"-{num}"
+        if isinstance(num, int):
+            return StringedNumber(num, returnAsInt=True)
+        return StringedNumber(num)
+    isInt = numString.isnumeric()
+    if isInt:
+        numAsDecimal = int(numString) / 10**len(numString)
+        roundedValue = roundup(numAsDecimal, prec)
+        roundedValue *= 10**len(numString)
+        roundedValue = int(roundedValue)
+        resultSigFigs = sigfig(str(roundedValue))
+        if resultSigFigs != prec:
+            currentResult = str(int(roundedValue))[:prec] + "\u0305" + str(int(roundedValue))[prec:]
+            return StringedNumber(currentResult)
+        return StringedNumber(roundedValue, returnAsInt=True)
+    elif isNumber(numString):
+        numString = exp2dec(float(numString)) # precision update
+        digitPos = numString.index('.')
+        numStringNoJunk = re.sub(r"[\-\.]", '', numString)
+        numStringFirstSigFigPos = re.search("[1-9]", numStringNoJunk).start()
+        numStringNoLeadingZeros = numStringNoJunk[numStringFirstSigFigPos:]
+        numAsDecimal = int(numStringNoLeadingZeros) / 10**len(numStringNoLeadingZeros)
+        roundedValue = roundup(numAsDecimal, prec)
+        roundedValue /= 10**(numStringFirstSigFigPos-digitPos)
+        roundedValue = exp2dec(roundedValue)
+        digitsWithoutDecimal = len(str(int(float(roundedValue))))
+        if float(roundedValue) >= 1:
+            roundedValue = decimal.Decimal(roundedValue).quantize(decimal.Decimal('0.' + '0' * (prec-digitsWithoutDecimal)), context=decimal.Context(prec=len(numString), rounding=decimal.ROUND_HALF_UP))
+            resultSigFigs = sigfig(str(roundedValue))
+            if resultSigFigs != prec:
+                currentResult = str(roundedValue)[:prec] + "\u0305" + str(roundedValue)[prec:]
+                return StringedNumber(currentResult)
+            if isNegative:
+                roundedValue = f"-{roundedValue}"
+            return StringedNumber(roundedValue)
+        resultSigFigs = sigfig(roundedValue)
+        if resultSigFigs > initialSigFigs:
+            firstSigFigPos = re.search("[1-9]", roundedValue).start()
+            endPos = firstSigFigPos + prec
+            roundedValue = roundedValue[:endPos]
+            return StringedNumber(roundedValue)
+        if resultSigFigs < initialSigFigs:
+            missingSigFigs = prec - resultSigFigs
+            roundedValue = str(roundedValue) + '0'*(missingSigFigs)
+            return StringedNumber(roundedValue)
+        return StringedNumber(roundedValue)
+
+def sigfigs(num):
+    """Returns the significant figures of a number.
+    Usage:
+        sigfigs(num)
+    Examples:
+        sigfigs(100) -> ['1']
+        sigfigs("100.0") -> ['1', '0', '0', '0']
+    Parameters:
+        num (int,str): number for which sigfigs will be displayed"""
+    if isinstance(num, (int, str)) == False:
+        raise TypeError("number must be integer or string")
+    numString = str(num)
+    isInt = numString.isnumeric()
+    sigFigArray = []
+    if isInt:
+        sigFigs = numString.rstrip('0')
+        for c in sigFigs:
+            sigFigArray.append(c)
+        return sigFigArray
+    elif isNumber(numString):
+        numStringNoJunk = re.sub(r"[\-\.]", '', numString)
+        firstSigFigPos = re.search("[1-9]", numStringNoJunk).start()
+        sigFigs = numStringNoJunk[firstSigFigPos:]
+        if sigFigs != '':
+            for c in sigFigs:
+                sigFigArray.append(c)
+        return sigFigArray
+
+def temperature(num, unit1, unit2):
+    """Returns temperature values converted into another unit.
+    Usage:
+        temperature(num, unit1, unit2)
+    Examples:
+        temperature(32, 'f', 'c') -> 0
+        temperature(2.7, 'k', 'c') -> -270.45
+    Parameters:
+        num (int,float): initial temperature
+        unit1 (str):     unit to convert from
+        unit2 (str):     unit to convert to
+    Units:
+        c -> celcius
+        f -> fahrenheit
+        k -> kelvin
+        planck -> planck temperature"""
+    if unit1 == unit2:
+        return num
+    conversionType = f"{unit1}2{unit2}"
+    planckTemp = 1.416784e+32
+    match conversionType:
+        case "c2f":
+            return num * (9/5) + 32
+        case "c2k":
+            return num + 273.15
+        case "f2c":
+            return (num - 32) * (5/9)
+        case "f2k":
+            return (num - 32) * (5/9) + 273.15
+        case "k2c":
+            return num - 273.15
+        case "k2f":
+            return (num - 274.15) * (9/5)
+        case "planck2c":
+            return (num * planckTemp) - 273.15
+        case "planck2f":
+            return ((num * planckTemp) - 274.15) * (9/5)
+        case "planck2k":
+            return num * planckTemp
+        case "c2planck":
+            return (num + 273.15) / planckTemp
+        case "f2planck":
+            return ((num - 32) * (5/9) + 273.15) / planckTemp
+        case "k2planck":
+            return num / planckTemp
+        case _:
+            raise TypeError("invalid units")
+
+def exp2dec(num):
+    if isinstance(num, (float)) == False:
+        raise TypeError("number must be float")
+    if num >= 1e16 or abs(num) < 1e-4:
+        numStr = str(num)
+        posAtE = numStr.index('e')
+        hasDec = posAtE > 1
+        numExponent = abs(floor(log10(abs(num))))
+        if hasDec:
+            newDec = posAtE - 2 + numExponent
+            decForm = str("{:." + str(newDec) + "f}").format(num)
+            return str(decForm)
+        else:
+            decForm = str("{:." + str(numExponent) + "f}").format(num)
+            return str(decForm)
+    return str(num)
+
+def tan(num, unit='rad'):
+    """Returns tan of a number.
+    Usage:
+        tan(num, unit='rad')
+    Examples:
+        tan(45) -> 1.619...
+        tan(45, 'deg') -> 1
+    Parameters:
+        num (int,float):      number to use
+        unit, optional (str): unit to use
+    Units:
+        rad -> radians
+        deg -> degrees"""
+    if unit == "deg": num = math.radians(num)
+    return math.tan(num)
+def arctan(num, unit='rad'):
+    """Returns arc tan of a number.
+    Usage:
+        arctan(num, unit='rad')
+    Examples:
+        arctan(pi) -> 1.262...
+        arctan(45, 'deg') -> 1
+    Parameters:
+        num (int, float):     number to use
+        unit, optional (str): unit to use
+    Units:
+        rad -> radians
+        deg -> degrees"""
+    useDegrees = unit == "deg"
+    result = math.degrees(math.atan(num)) if useDegrees else math.atan(num)
+    return result
+def sin(num, unit='rad'):
+    """Returns sin of a number.
+    Usage:
+        sin(num, unit='rad')
+    Examples:
+        sin(90) -> 0.893...
+        sin(90, 'deg') -> 1
+    Parameters:
+        num (int,float):      number to use
+        unit, optional (str): unit to use
+    Units:
+        deg -> degrees
+        rad -> radians"""
+    if unit == "deg": num = math.radians(num)
+    return math.sin(num)
+def arcsin(num, unit='rad'):
+    """Returns arc sin of a number.
+    Usage:
+        arcsin(num, unit='rad')
+    Examples:
+        arcsin(0.5, 'deg') -> 30
+        arcsin(0.5) -> 0.523...
+    Parameters:
+        num (int, float):     number to use
+        unit, optional (str): unit to use
+    Units:
+        deg -> degrees
+        rad -> radians"""
+    useDegrees = unit == "deg"
+    result = math.degrees(math.asin(num)) if useDegrees else math.asin(num)
+    return result
+def cos(num, unit='rad'):
+    """Returns cos of a number.
+    Usage:
+        cos(num, unit='rad')
+    Examples:
+        cos(360) -> -0.283...
+        cos(360, 'deg') -> 1
+    Parameters:
+        num (int,float):      number to use
+        unit, optional (str): unit to use
+    Units:
+        rad -> radians
+        deg -> degrees"""
+    if unit == "deg": num = math.radians(num)
+    return math.cos(num)
+def arccos(num, unit='rad'):
+    """Returns arc cos of a number.
+    Usage:
+        arccos(num, unit='rad')
+    Examples:
+        arccos(0) -> 1.57...
+        arccos(0, 'deg') -> 90
+    Parameters:
+        num (int, float):     number to use
+        unit, optional (str): unit to use
+    Units:
+        rad -> radians
+        deg -> degrees"""
+    useDegrees = unit == "deg"
+    result = math.degrees(math.acos(num)) if useDegrees else math.acos(num)
+    return result
+def cot(num, unit='rad'):
+    """Returns cot of a number.
+    Usage:
+        cot(num, unit='rad')
+    Examples:
+        cot(1) -> 0.642...
+        cot(1, 'deg') -> 57.289...
+    Parameters:
+        num (int,float):      number to use
+        unit, optional (str): unit to use
+    Units:
+        rad -> radians
+        deg -> degrees"""
+    if unit == "deg": num = math.radians(num)
+    return 1 / math.tan(num)
+def csc(num, unit='rad'):
+    """Returns csc of a number.
+    Usage:
+        csc(num, unit='rad')
+    Examples:
+        csc(1.57) -> 1.000...
+        csc(1.57, 'deg') -> 36.498...
+    Parameters:
+        num (int,float):      number to use
+        unit, optional (str): unit to use
+    Units:
+        rad -> radians
+        deg -> degrees"""
+    if unit == "deg": num = math.radians(num)
+    return 1 / math.sin(num)
+def sec(num, unit='rad'):
+    """Returns sec of a number.
+    Usage:
+        sec(num, unit='rad')
+    Examples:
+        sec(pi*2) -> 1
+        sec(pi*2, 'deg') -> 1.006...
+    Parameters:
+        num (int,float):      number to use
+        unit, optional (str): unit to use
+    Units:
+        rad -> radians
+        deg -> degrees"""
+    if unit == "deg": num = math.radians(num)
+    return 1 / math.cos(num)
+
+newGlobal = {
+    "round": round,
+    "int": int,
+    "float": float,
+    "bool": bool,
+    "list": list,
+    "dict": dict,
+    "str": str,
+    "abs": abs,
+    "sum": sum,
+    "max": max,
+    "min": min,
+    "pow": pow,
+    "complex": complex,
+    "isinstance": isinstance,
+    "help": help,
+    "exec": exec,
+}
+
+excludedFunctions = [
+    "excludedFunctions",
+    "exp2dec",
+    "useSymbols",
+    "addToHistory",
+    "fixUI",
+]
+
+for pack in dir():
+    if pack.startswith('__') == False and pack not in excludedFunctions:
+        newGlobal[str(pack)] = globals()[pack]
 
 if var_args.get('e') != None:
     ui = var_args.get('e')
     fixedString = fixUI(ui)
     if fixedString != None:
         try:
-            result = eval(fixedString)
-        except Exception as _e:
-            exit(_e)
-        if isNumber(result) and result < sys.float_info.max:
-            print(f"{result:e}") if result >= 1e18 else print(f"{result:,}")
-        else:
-            print(result)
+            result = eval(fixedString, {"__builtins__": None}, newGlobal)
+            if isNumber(result):
+                if result < sys.float_info.max:
+                    print(f"{result:e}") if result >= 1e16 else print(f"{result:,}")
+                else:
+                    print(result)
+            elif type(result).__name__ == "StringedNumber":
+                print(result.num)
+            else:
+                print(result)
+        except Exception as ERROR:
+            ERROR_TYPE = type(ERROR).__name__
+            ERROR_LINE = sys.exc_info()[-1].tb_lineno
+            exit(f"{ERROR_TYPE}, lineno {ERROR_LINE}: {str(ERROR)}")
     exit()
 
 while True:
     try:
         ui = uiSession.prompt(">")
-        exitAttempts = 0
+        ui = " ".join(ui.split())
+        exitAttempt = False
         match ui:
             case "" | None:
                 continue
@@ -530,27 +1363,69 @@ while True:
             case _:
                 fixedString = fixUI(ui)
                 if fixedString != None:
-                    result = eval(fixedString)
-                    if isNumber(result):
+                    result = eval(fixedString, {'__builtins__': None}, newGlobal)
+                    allowIsNumber = type(result).__name__ != "Decimal" and type(result).__name__ != "StringedNumber"
+                    if isNumber(result) and allowIsNumber:
                         addToHistory(ui, result)
-                        if result >= 1e18 and result < sys.float_info.max:
+                        if result >= 1e16 and result < sys.float_info.max:
                             print(f"{result:e}")
                         else:
                             print(f"{result:,}")
-                    elif isinstance(result, list):
+                    elif isinstance(result, (list, dict)):
+                        addToHistory(ui, result, includeAll=True)
+                        print(result)
+                    elif isinstance(result, complex):
+                        if result.imag == 1 and result.real == 0:
+                            result = 'i'
+                        elif result.imag == 0 and result.real != 0:
+                            result = int(result.real) if result.real.is_integer() else result.real
+                        elif result.real == 0 and result.imag != 0:
+                            result = f"{int(result.imag)}i" if result.imag.is_integer() else f"{result.imag}i"
+                        else:
+                            result = f"{result.real} + {result.imag}i"
+                        addToHistory(ui, result, includeAll=True, includeAllWithSymbols=True)
+                        print(result)
+                    elif isinstance(result, bool):
                         addToHistory(ui, result)
+                        print( str(result).lower() )
+                    elif type(result).__name__ in ["module", "function"]:
+                        print("{}: {}".format(type(result).__name__, result.__name__))
+                    elif type(result).__name__ == 'Decimal':
+                        addToHistory(ui, str(result), includeAll=True)
+                        print(result)
+                    elif type(result).__name__ == "StringedNumber":
+                        result = result.num
+                        addToHistory(ui, result, includeAll=True)
                         print(result)
                     elif result != None:
                         print(result)
-    except KeyboardInterrupt:
-        if exitAttempts >= 1:
-            print("\nTerminating script ...")
+    except (KeyboardInterrupt, EOFError) as ERROR:
+        if type(ERROR).__name__ == "KeyboardInterrupt":
+            if exitAttempt:
+                exit()
+            exitAttempt = True
+            print("Confirm exit via ctrl+C or ctrl+D")
+        else:
+            print("Terminating script...")
             exit()
-        exitAttempts += 1
-        print("\nConfirm exit via ctrl+C or ctrl+D")
-    except EOFError:
-        print("\nTerminating script ...")
-        exit()
-    except Exception as _e:
-        print(_e)
-        #print(sys.exc_info()[-1].tb_lineno, type(_e).__name__) get line of error
+    except Exception as ERROR:
+        ERROR_LINE = sys.exc_info()[-1].tb_lineno
+        ERROR_TYPE = type(ERROR).__name__
+        if var_args.get("report_errors"):
+            print(f"{ERROR_TYPE}, lineno {ERROR_LINE}: {ERROR}")
+            if ERROR_TYPE not in ["ZeroDivisionError", "OverflowError"]:
+                continue
+        match ERROR_TYPE:
+            case "ZeroDivisionError":
+                print("undefined")
+                addToHistory(ui, "undefined", includeAll=True, includeAllWithSymbols=True)
+            case "OverflowError":
+                print("result too big")
+                addToHistory(ui, "result too big", includeAll=True)
+            case "TypeError":
+                if str(ERROR) == "'NoneType' object is not subscriptable":
+                    print("undefined function or variable")
+                    continue
+                print(ERROR)
+            case _:
+                print(ERROR)
