@@ -12,14 +12,33 @@ $ python3 calculator.py
 ```
 ## Features
 The **calculator.py** script contains several features, the `showhelp` function is useful because it displays usage info about a given function.<br><br>
-To use the `showhelp` function, type `showhelp()` inside the script. Optionally, you can display specific info about a given function by passing the function name in as an argument, e.g. `showhelp(log)`, this will display usage information for the `log` function.
-###### Note: The `round` function uses Bankers rounding. Python uses this rounding method by default, so this is used to avoid confusion. <br> If you want to round 5 up, use the `roundup` function, this is the most common rounding method.
+To use the `showhelp` function, type `showhelp()` inside the script. Optionally, you can display specific info about a given function by passing the function name in as an argument, e.g. `showhelp(log)`, this will display usage information about the `log` function.<br><br>
+**Note: The `round` function uses Bankers rounding. Python uses this rounding method by default, so this is used to avoid confusion. <br> If you want to round 5 up, use the `roundup` function, this is the most common rounding method.**
 
 ### Viewing History
 History can be displayed with the `hist` command. Alternatively, the command `history` will do the same.<br>
-Optionally, you can display the last `n` commands in your history with `hist n` or `history n`.
+Optionally, you can view the last `n` equations, or even a range between two specified points in your history.<br><br>
+
+#### Optional History Arguments
+Viewing the last `n` equations in your history.
+```text
+hist n
+```
+Viewing the history range from the `xth` to `nth` point in history.
+```text
+hist xth nth
+```
+**note: history is displayed from oldest to latest**
+
+#### Previous Answer
+The `ans` variable is equivalent to your previous expressions answer, therefor you do not have to type in your previous expression.<br>
+```text
+π = 3.141592653589793
+ans == π = true
+```
+
 ### Constants
-You can view the list of constants with the `const` command. This will give the following output:
+You can view the list of inbuild constants with the `const` command. This will display the following output:
 ```text
 c = Speed of light 299,792,458 m/s
 g = Standard gravity 9.80665 m/s²
