@@ -13,19 +13,52 @@ import decimal
 import sys
 import cmath
 import numpy
+import fractions
 
 sys.set_int_max_str_digits(0) # allowing very large numbers
 
 sympy.init_printing(pretty_print=True, use_unicode=True)
 
 uiSession = prompt_toolkit.PromptSession()
-parse = argparse.ArgumentParser()
-parse.add_argument("-e", help="solve expression", type=str)
-parse.add_argument("--no-symbols", help="don't use custom symbols", action="store_true")
-parse.add_argument("--report-errors", help="report all errors", action="store_true")
-args = parse.parse_args()
+parser = argparse.ArgumentParser()
+parser.add_argument("-e", help="expression to solve", metavar="<expression>")
+parser.add_argument("--no_symbols", help="disables mathematical symbols", action="store_true")
+parser.add_argument("--bracket_asterisk", help="auto-imports asterisks between brackets and numbers", action="store_true")
+parser.add_argument("--equation_results", help="results are displayed as an equation", action="store_true")
+parser.add_argument("--history_index", help="history items will be displayed adjacent to their history index position (oldest to latest)", action="store_true")
+parser.add_argument("--developer", help="developer mode", action="store_true")
+args = vars(parser.parse_args())
 
-var_args = vars(args)
+EQUATION_RESULTS = args.get("equation_results")
+HISTORY_INDEX = args.get("history_index")
+DEVELOPER = args.get("developer")
+if DEVELOPER:
+    version_info = sys.version_info
+    python_version = "{}.{}.{}".format(version_info[0], version_info[1], version_info[2])
+    operating_system = "Unknown"
+    match sys.platform:
+        case "win32":
+            operating_system = "Windows"
+        case "cygwin":
+            operating_system = "Windows/Cygwin"
+        case "darwin":
+            operating_system = "macOS"
+        case _:
+            operating_system = sys.platform
+            operating_system = str(operating_system)[0].upper() + str(operating_system)[1:]
+    developer_info = {
+        "OS name": operating_system,
+        "Python (semantic) version": python_version,
+        "args": args,
+    }
+    print("Developer mode enabled!")
+    for key, val in developer_info.items():
+        if key == "args":
+            print("Script args:")
+            for arg, arg_val in args.items():
+                print(f"{' '*4}{arg}: {arg_val}")
+        else:
+            print(f"{key}: {val}")
 
 warnings.filterwarnings("ignore")
 warnings.filterwarnings("default", category=DeprecationWarning)
@@ -60,7 +93,8 @@ class Symbols:
         quarter3 = '\u00be'
 
 class StringedNumber:
-    def __init__(self, num, returnAsInt=False):
+    def __init__(self, num, returnAsInt=False, addHistory=True):
+        self.addHistory = addHistory
         if returnAsInt:
             self.num = int(num)
         else:
@@ -93,6 +127,7 @@ constants = {
     "R": f"Gas constant {R} J{Symbols.cdot}K{Symbols.negative}{Symbols.first}{Symbols.cdot}mol{Symbols.negative}{Symbols.first}",
 }
 
+ans = '' #previous answer
 # function aliasing
 log10 = math.log10
 ln = math.log
@@ -170,9 +205,8 @@ def isNumber(value):
         except:
             return False
 
-
 def useSymbols(expression):
-    if var_args.get("no_symbols"):
+    if args.get("no_symbols"):
         return expression
     expression = str(expression)
     replacements = {
@@ -194,7 +228,7 @@ def useSymbols(expression):
     return expression
 
 def addToHistory(expression, result, includeAll=False, includeAllWithSymbols=False):
-    global history
+    global history, ans
     if isNumber(result) and isinstance(result, (int, float)):
         # remove last equation from history if the max. limit is reached
         if len(history) >= 40:
@@ -213,9 +247,11 @@ def addToHistory(expression, result, includeAll=False, includeAllWithSymbols=Fal
             if appendText in history:
                 history.remove(appendText)
             history.append(appendText)
+        ans = result
     elif isinstance(result, complex):
         if len(history) >= 40:
             history.pop(0)
+        ans = result
         if result.real == 0:
             result = "{}i".format(result.imag)
         else:
@@ -227,6 +263,7 @@ def addToHistory(expression, result, includeAll=False, includeAllWithSymbols=Fal
     elif isinstance(result, list):
         if len(history) >= 40:
             history.pop(0)
+        ans = result
         appendText = f"{useSymbols(expression)} = {result}"
         if appendText in history:
             history.remove(appendText)
@@ -234,6 +271,7 @@ def addToHistory(expression, result, includeAll=False, includeAllWithSymbols=Fal
     elif isinstance(result, bool):
         if len(history) >= 40:
             history.pop(0)
+        ans = result
         result = str(result).lower()
         appendText = f"{useSymbols(expression)} = {result}"
         if appendText in history:
@@ -248,13 +286,80 @@ def addToHistory(expression, result, includeAll=False, includeAllWithSymbols=Fal
         if appendText in history:
             history.remove(appendText)
         history.append(appendText)
+        ans = result
+
+def bracketMultiplication(expression: str) -> str:
+    expression = re.sub(r"(?:(?<=\)))(?P<num>\d+\.?\d+|\.?\d+|0\.?\d+)", r"*\g<num>", expression)
+    expression = re.sub(r"(?P<num>\d+\.?\d+|\.?\d+|0\.?\d+)(?:(?=\())", r"\g<num>*", expression)
+    return expression
+
+def prettyFraction(numerator, denominator):
+    """Returns a prettified visualization of a fraction.
+    Usage:
+        prettyFraction(numerator, denominator)
+    Example:
+        prettyFraction(1, 2)
+    Parameters:
+        numerator (int,float):   numerator of which will be visualized
+        denominator (int,float): denominator of which will be visualized"""
+    numeratorLength = len(str(numerator))
+    denominatorLength = len(str(denominator))
+    if numeratorLength == denominatorLength:
+        seperatorLength = denominatorLength
+        return StringedNumber(f"{numerator}\n{'-'*seperatorLength}\n{denominator}", addHistory=False)
+    elif numeratorLength > denominatorLength:
+        seperatorLength = numeratorLength
+        steps = (seperatorLength - denominatorLength) // 2
+        return StringedNumber(f"{numerator}\n{'-'*seperatorLength}\n{' '*steps}{denominator}", addHistory=False)
+    elif numeratorLength < denominatorLength:
+        seperatorLength = denominatorLength
+        steps = (seperatorLength - numeratorLength) // 2
+        return StringedNumber(f"{' '*steps}{numerator}\n{'-'*seperatorLength}\n{denominator}", addHistory=False)
+
+def fraction(result: float, pretty=True) -> StringedNumber:
+    """Returns a number as a fraction.
+    Usage:
+        fraction(result, pretty=True)
+    Example:
+        fraction(1/3) -> 1/3
+    Parameters:
+        result (float):           the number of which to be visualized as a fraction
+        pretty, optional (bool):  displays the result in pretty mode"""
+    global ans
+    if not isinstance(result, float):
+        return result
+    ans = result
+    resultInteger = int(result)
+    resultDecimal = result - resultInteger
+    if resultDecimal == 0:
+        return result
+    result_fraction = fractions.Fraction(resultDecimal).limit_denominator(1_000_000)
+    if resultInteger == 0 and pretty:
+        regexFractionSearch = re.search(r"(?P<num>\d+)/(?P<den>\d+)", str(result_fraction))
+        result_pretty = prettyFraction(regexFractionSearch.group("num"), regexFractionSearch.group("den"))
+        addToHistory(str(result), str(result_fraction), includeAll=True)
+        return result_pretty
+    if resultInteger > 0 and pretty:
+        regexFractionSearch = re.search(r"(?P<num>\d+)/(?P<den>\d+)", str(result_fraction))
+        result_pretty = prettyFraction(regexFractionSearch.group("num"), regexFractionSearch.group("den"))
+        addToHistory(str(result), str(result_fraction), includeAll=True)
+        return StringedNumber(f"{result_pretty.num} \x1b[1A+ {resultInteger}\n", addHistory=False)
+    elif resultInteger > 0 and not pretty:
+        addToHistory(str(result), str(result_fraction), includeAll=True)
+        return StringedNumber(f"{resultInteger} + {result_fraction}", addHistory=False)
+    addToHistory(str(result), str(result_fraction))
+    return StringedNumber(str(result_fraction), addHistory=False)
 
 def fixUI(userValue):
     global history
     match userValue.lower():
         case "history" | "hist":
             if history != []:
-                print(*history, sep='\n')
+                if HISTORY_INDEX:
+                    for index, equation in enumerate(history):
+                        print(f"{len(history)-index}.  {equation}")
+                else:
+                    print(*history, sep='\n')
             else:
                 print("history is currently empty")
             return None
@@ -267,23 +372,52 @@ def fixUI(userValue):
             for key, value in constants.items():
                 print(f"{key} = {value}")
             return None
+        case "ans":
+            if isinstance(ans, bool):
+                print(str(ans).lower())
+            else:
+                print(ans)
+            return None
         case "exit":
             exit()
-    checkingHistoryPattern = re.compile(r"^(?:hist|history) (?P<size>\d+)$")
-    if bool(re.search(checkingHistoryPattern, userValue)):
+    checkingHistory = re.search(r"^(?:history\b|hist\b)$|^(?:history\b|hist\b)\s(?P<size>\d+)$|^(?:history\b|hist\b)\s(?P<lower>\d+)\s(?P<upper>\d+)$", userValue)
+    if bool(checkingHistory):
         if len(history) == 0:
             print("history is currently empty")
             return None
-        returnSize = int(re.search(checkingHistoryPattern, userValue).group("size"))
-        if returnSize >= len(history): returnSize = len(history)
-        if returnSize <= 0:
-            raise ValueError("return size too low")
-        print(*history[len(history)-returnSize:len(history)], sep='\n')
-        return None
+        if checkingHistory.group("size") != None:
+            returnSize = int(checkingHistory.group("size"))
+            if returnSize >= len(history): returnSize = len(history)
+            if returnSize <= 0:
+                raise ValueError("return size too low")
+            print(*history[len(history)-returnSize:len(history)], sep='\n')
+            return None
+        if checkingHistory.group("lower") != None and checkingHistory.group("upper") != None:
+            returnSizeLower = int(checkingHistory.group("lower"))
+            returnSizeUpper = int(checkingHistory.group("upper"))
+            if returnSizeLower == returnSizeUpper and 0 < returnSizeLower <= len(history):
+                print(history[len(history)-returnSizeLower])
+                return None
+            if returnSizeLower > returnSizeUpper:
+                raise ValueError("lower limit must be less than upper limit")
+            if len(history) <= returnSizeLower <= 0:
+                raise ValueError("lower limit out of range")
+            if returnSizeUpper >= 40:
+                returnSizeUpper = len(history)
+            elif returnSizeUpper <= 0:
+                raise ValueError("upper limit too low")
+            trueUpper = len(history) - (returnSizeLower-1)
+            trueLower = len(history) - returnSizeUpper
+            print(*history[trueLower:trueUpper], sep='\n')
+            return None
+    userValue = re.sub(r"(?:(?<=^)|(?<=[\s\+\-\*\/\^\(\,\%]))ans(?:(?=$)|(?=[\s\+\-\*\/\^\)\,\%]))", str(ans), userValue)
+    if args.get("bracket_asterisk"):
+        userValue = bracketMultiplication(userValue)
     userValue = re.sub(r'\^', "**", userValue)
     userValue = re.sub(r"\b(?P<num>\d+)i\b", r"\g<num>j", userValue)
     userValue = re.sub(r"(?:(?<=[\s\+\-\*\/\,\(])|(?:^))(?:(?P<num>\d+)!(?:(?=[\s\+\-\*\/\,\)]|(?:$))))", r"factorial(\g<num>)", userValue)
     return userValue
+
 
 # more functions
 def deg2rad(deg):
@@ -324,7 +458,7 @@ def root(nth, n):
     Example:
         root(2, 9) -> 3
     Parameters:
-        nth (int): root value
+        nth (int): the specified nth root
         n (int):   the number for which the nth root needs to be found"""
     result = pow(n, 1/nth)
     if result.is_integer():
@@ -613,19 +747,21 @@ def mass(n, unit1, unit2):
         unit1 (str):    mass unit being used
         unit2 (str):    unit to convert to
     Units:
-        kg => kilograms
-        ug => micrograms
-        mg => milligrams
-        g => grams
-        t => metric ton
-        gr => grain
-        oz => ounce
-        lb => pound
-        st => stone
-        ton => US ton
-        planck => planck mass"""
+        kg -> kilograms
+        ng -> nanograms
+        ug -> micrograms
+        mg -> milligrams
+        g -> grams
+        t -> metric ton
+        gr -> grain
+        oz -> ounce
+        lb -> pound
+        st -> stone
+        ton -> US ton
+        planck -> planck mass"""
     units = {
         "kg": 1,
+        "ng": 1/1e12,
         "ug": 1/1e9,
         "mg": 1/1e6,
         "g": 1/1e3,
@@ -694,6 +830,7 @@ def volume(n, unit1, unit2):
         imp_floz -> imperial fluid ounce
         imp_qt -> imperial quart
         floz -> US fluid ounce
+        dl -> deciliter
         c -> US cup
         pt -> US pint
         imp_pt -> imperial pint
@@ -709,6 +846,7 @@ def volume(n, unit1, unit2):
         "tbsp": 0.015,
         "imp_floz": 0.0284130625,
         "floz": 0.0295735295625,
+        "dl": 0.1,
         "c": 0.2365882365,
         "pt": 0.473176473,
         "imp_pt": 0.56826125,
@@ -1323,18 +1461,22 @@ excludedFunctions = [
     "useSymbols",
     "addToHistory",
     "fixUI",
+    "bracketMultiplication",
 ]
 
 for pack in dir():
-    if pack.startswith('__') == False and pack not in excludedFunctions:
+    if not pack.startswith('__') and pack not in excludedFunctions:
         newGlobal[str(pack)] = globals()[pack]
 
-if var_args.get('e') != None:
-    ui = var_args.get('e')
+if args.get('e') != None:
+    ui = args.get('e')
     fixedString = fixUI(ui)
     if fixedString != None:
         try:
-            result = eval(fixedString, {"__builtins__": None}, newGlobal)
+            if DEVELOPER:
+                result = eval(fixedString)
+            else:
+                result = eval(fixedString, {"__builtins__": None}, newGlobal)
             if isNumber(result):
                 if result < sys.float_info.max:
                     print(f"{result:e}") if result >= 1e16 else print(f"{result:,}")
@@ -1363,9 +1505,16 @@ while True:
             case _:
                 fixedString = fixUI(ui)
                 if fixedString != None:
-                    result = eval(fixedString, {'__builtins__': None}, newGlobal)
+                    if DEVELOPER:
+                        result = eval(fixedString)
+                    else:
+                        result = eval(fixedString, {'__builtins__': None}, newGlobal)
                     allowIsNumber = type(result).__name__ != "Decimal" and type(result).__name__ != "StringedNumber"
+                    if EQUATION_RESULTS and type(result).__name__ != "StringedNumber":
+                        print(f"{ui} = ", end='')
                     if isNumber(result) and allowIsNumber:
+                        if float(result).is_integer():
+                            result = int(result)
                         addToHistory(ui, result)
                         if result >= 1e16 and result < sys.float_info.max:
                             print(f"{result:e}")
@@ -1394,9 +1543,11 @@ while True:
                         addToHistory(ui, str(result), includeAll=True)
                         print(result)
                     elif type(result).__name__ == "StringedNumber":
-                        result = result.num
-                        addToHistory(ui, result, includeAll=True)
-                        print(result)
+                        if result.addHistory:
+                            addToHistory(ui, result.num, includeAll=True)
+                            print(result.num)
+                        else:
+                            print(result.num)
                     elif result != None:
                         print(result)
     except (KeyboardInterrupt, EOFError) as ERROR:
@@ -1411,10 +1562,8 @@ while True:
     except Exception as ERROR:
         ERROR_LINE = sys.exc_info()[-1].tb_lineno
         ERROR_TYPE = type(ERROR).__name__
-        if var_args.get("report_errors"):
-            print(f"{ERROR_TYPE}, lineno {ERROR_LINE}: {ERROR}")
-            if ERROR_TYPE not in ["ZeroDivisionError", "OverflowError"]:
-                continue
+        if DEVELOPER:
+            print(f"exception caught on lineno {ERROR_LINE}: '{ERROR_TYPE}: {ERROR}'")
         match ERROR_TYPE:
             case "ZeroDivisionError":
                 print("undefined")
