@@ -155,7 +155,28 @@ erf = math.erf
 erfc = math.erfc
 floor = math.floor
 ceil = math.ceil
-mean, average, avg = statistics.mean, statistics.mean, statistics.mean
+def mean(multiset: list, no_outliers: bool = False):
+    """Returns the average of a multiset of numbers.
+    Usage:
+        mean(multiset, no_outliers)
+    Example:
+        mean([1, 2, 3, 4, 1000], no_outliers=True) -> 2.5
+    Parameters:
+        multiset (array):    multiset of numbers used to calculate the mean
+        no_outliers (bool):  removes outliers from multiset before calculating the average"""
+    if no_outliers:
+        _upper = upperfence(multiset)
+        _lower = lowerfence(multiset)
+        fixedMultiset = []
+        for num in multiset:
+            if num < _lower:
+                continue
+            elif num > _upper:
+                continue
+            fixedMultiset.append(num)
+        return sum(fixedMultiset) / len(fixedMultiset)
+    return sum(multiset) / len(multiset)
+average, avg = mean, mean
 median = statistics.median
 mode = statistics.multimode
 z2p = scipy.stats.norm.cdf
@@ -211,6 +232,7 @@ def useSymbols(expression):
     expression = str(expression)
     replacements = {
         r"\*": Symbols.cdot,
+        r"(?<!.)\bsqrt\((?P<num>\d+)\)": rf"{Symbols.Radicals.sqrt}\g<num>",
         r"(?<!\.)\bsqrt": Symbols.Radicals.sqrt,
         r"(?<!\.)\bcbrt": Symbols.Radicals.cbrt,
         r"(?:(?:(?<=[\+\-\*\/\,\(\^\s])|\A)\(1/2\)(?:(?=(?:[\+\-\*\/\,\)\^\s]|\Z))))": Symbols.Fractions.half,
@@ -229,6 +251,8 @@ def useSymbols(expression):
 
 def addToHistory(expression, result, includeAll=False, includeAllWithSymbols=False):
     global history, ans
+    if bool(re.search(r"^\d+$", expression)):
+        return
     if isNumber(result) and isinstance(result, (int, float)):
         # remove last equation from history if the max. limit is reached
         if len(history) >= 40:
@@ -289,11 +313,11 @@ def addToHistory(expression, result, includeAll=False, includeAllWithSymbols=Fal
         ans = result
 
 def bracketMultiplication(expression: str) -> str:
-    expression = re.sub(r"(?:(?<=\)))(?P<num>\d+\.?\d+|\.?\d+|0\.?\d+)", r"*\g<num>", expression)
-    expression = re.sub(r"(?P<num>\d+\.?\d+|\.?\d+|0\.?\d+)(?:(?=\())", r"\g<num>*", expression)
+    expression = re.sub(r"(?<=\))(?P<num>(?:\d+?\.)?\d+)", r"*\g<num>", expression)
+    expression = re.sub(r"(?P<num>(?<!\w)(?:\d+?\.)?\d+(?:(?=\()))", r"\g<num>*", expression)
     return expression
 
-def prettyFraction(numerator, denominator):
+def prettyfraction(numerator, denominator):
     """Returns a prettified visualization of a fraction.
     Usage:
         prettyFraction(numerator, denominator)
@@ -336,12 +360,12 @@ def fraction(result: float, pretty=True) -> StringedNumber:
     result_fraction = fractions.Fraction(resultDecimal).limit_denominator(1_000_000)
     if resultInteger == 0 and pretty:
         regexFractionSearch = re.search(r"(?P<num>\d+)/(?P<den>\d+)", str(result_fraction))
-        result_pretty = prettyFraction(regexFractionSearch.group("num"), regexFractionSearch.group("den"))
+        result_pretty = prettyfraction(regexFractionSearch.group("num"), regexFractionSearch.group("den"))
         addToHistory(str(result), str(result_fraction), includeAll=True)
         return result_pretty
     if resultInteger > 0 and pretty:
         regexFractionSearch = re.search(r"(?P<num>\d+)/(?P<den>\d+)", str(result_fraction))
-        result_pretty = prettyFraction(regexFractionSearch.group("num"), regexFractionSearch.group("den"))
+        result_pretty = prettyfraction(regexFractionSearch.group("num"), regexFractionSearch.group("den"))
         addToHistory(str(result), str(result_fraction), includeAll=True)
         return StringedNumber(f"{result_pretty.num} \x1b[1A+ {resultInteger}\n", addHistory=False)
     elif resultInteger > 0 and not pretty:
@@ -410,6 +434,31 @@ def fixUI(userValue):
             trueLower = len(history) - returnSizeUpper
             print(*history[trueLower:trueUpper], sep='\n')
             return None
+    clearingHistory = re.search(r"^(?:history|hist) (?:delete|remove) (?P<num>\d+)$|^(?:history|hist) (?:delete|remove) (?P<lower>\d+) (?P<upper>\d+)$", userValue)
+    if bool(clearingHistory):
+        if not bool(clearingHistory.group("lower")):
+            if len(history) == 0:
+                print("history is currently empty")
+                return
+            if int(clearingHistory.group("num")) > len(history):
+                raise ValueError("history index does not exist")
+            indexToDelete = len(history) - int(clearingHistory.group("num"))
+            history.pop(indexToDelete)
+            return
+        else:
+            low, up = clearingHistory.group("lower"), clearingHistory.group("upper")
+            if len(history) == 0:
+                print("history is currently empty")
+                return
+            if low >= up:
+                print("lower limit must be less than upper limit")
+                return
+            indexFrom = len(history) - int(up)
+            indexTo = len(history) - (int(low) - 1)
+            valuesToRemove = history[indexFrom:indexTo]
+            for i in valuesToRemove:
+                history.remove(i)
+            return
     userValue = re.sub(r"(?:(?<=^)|(?<=[\s\+\-\*\/\^\(\,\%]))ans(?:(?=$)|(?=[\s\+\-\*\/\^\)\,\%]))", str(ans), userValue)
     if args.get("bracket_asterisk"):
         userValue = bracketMultiplication(userValue)
