@@ -1,5 +1,8 @@
 # calculator.py
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/xyzpw/calculator.py/total)<br>
+
 A scientific calculator for your terminal emulator.<br>
+
 ![calculator_py-preview](https://github.com/xyzpw/calculator.py/assets/76017734/d7ef5ae7-1601-4722-a7d4-66e1442f2dc4)
 ## Installing Dependancies
 Some modules will need to be installed for this application to work properly. See the codeblock below for an example on installing dependencies.
@@ -13,7 +16,9 @@ $ python3 calculator.py
 ## Features
 The **calculator.py** script contains several features, the `showhelp` function is useful because it displays usage info about a given function.<br><br>
 To use the `showhelp` function, type `showhelp()` inside the script. Optionally, you can display specific info about a given function by passing the function name in as an argument, e.g. `showhelp(log)`, this will display usage information about the `log` function.<br><br>
-**Note: The `round` function uses Bankers rounding. Python uses this rounding method by default, so this is used to avoid confusion. <br> If you want to round 5 up, use the `roundup` function, this is the most common rounding method.**
+> [!NOTE]
+> The `round` function uses Bankers rounding. Python uses this rounding method by default, so this is used to avoid confusion.
+> If you want to round 5 up, use the `roundup` function, this is the most common rounding method.**
 
 ### Viewing History
 History can be displayed with the `hist` command. Alternatively, the command `history` will do the same.<br>

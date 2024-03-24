@@ -251,7 +251,7 @@ def useSymbols(expression):
 
 def addToHistory(expression, result, includeAll=False, includeAllWithSymbols=False):
     global history, ans
-    if bool(re.search(r"^\d+$", expression)):
+    if bool(re.search(r"^(?:\d+\.\d+|\.\d+|\d+)$", expression)):
         return
     if isNumber(result) and isinstance(result, (int, float)):
         # remove last equation from history if the max. limit is reached
