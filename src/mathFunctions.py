@@ -1,160 +1,72 @@
-#!/usr/bin/env python3
-
-import prompt_toolkit
-import math
-import os
-import re
-import statistics
-import scipy
-import warnings
-import argparse
 import sympy
-import decimal
-import sys
-import cmath
+import scipy
 import numpy
+import statistics
 import fractions
+import math
+import re
+import decimal
+from handlers._fixUi import *
+from handlers._validators import *
+from handlers._mathConstants import *
 
-sys.set_int_max_str_digits(0) # allowing very large numbers
+__all__ = [
+    "mean",
+    "average",
+    "avg",
+    "ptp",
+    "inf", "infinity",
+    "isprime",
+    "showhelp",
+    "prettyfraction",
+    "fraction",
+    "deg2rad",
+    "rad2deg",
+    "log",
+    "root",
+    "round5up",
+    "round5down",
+    "nCr",
+    "nPr",
+    "binomial",
+    "integrate",
+    "integral",
+    "lim",
+    "Lim",
+    "trunc",
+    "zscore",
+    "z2pRange",
+    "p2zRange",
+    "uncertainty",
+    "distance",
+    "mass",
+    "time",
+    "volume",
+    "quantile",
+    "score2p",
+    "outliers",
+    "IQR",
+    "lowerfence",
+    "upperfence",
+    "stdev",
+    "clock",
+    "storage",
+    "sigfig",
+    "roundsigfig",
+    "sigfigs",
+    "temperature",
+    "exp2dec",
+    "tan",
+    "arctan",
+    "sin",
+    "arcsin",
+    "cos",
+    "arccos",
+    "cot",
+    "csc",
+    "sec",
+]
 
-sympy.init_printing(pretty_print=True, use_unicode=True)
-
-uiSession = prompt_toolkit.PromptSession()
-parser = argparse.ArgumentParser()
-parser.add_argument("-e", help="expression to solve", metavar="<expression>")
-parser.add_argument("--no_symbols", help="disables mathematical symbols", action="store_true")
-parser.add_argument("--bracket_asterisk", help="auto-imports asterisks between brackets and numbers", action="store_true")
-parser.add_argument("--equation_results", help="results are displayed as an equation", action="store_true")
-parser.add_argument("--history_index", help="history items will be displayed adjacent to their history index position (oldest to latest)", action="store_true")
-parser.add_argument("--developer", help="developer mode", action="store_true")
-args = vars(parser.parse_args())
-
-EQUATION_RESULTS = args.get("equation_results")
-HISTORY_INDEX = args.get("history_index")
-DEVELOPER = args.get("developer")
-if DEVELOPER:
-    version_info = sys.version_info
-    python_version = "{}.{}.{}".format(version_info[0], version_info[1], version_info[2])
-    operating_system = "Unknown"
-    match sys.platform:
-        case "win32":
-            operating_system = "Windows"
-        case "cygwin":
-            operating_system = "Windows/Cygwin"
-        case "darwin":
-            operating_system = "macOS"
-        case _:
-            operating_system = sys.platform
-            operating_system = str(operating_system)[0].upper() + str(operating_system)[1:]
-    developer_info = {
-        "OS name": operating_system,
-        "Python (semantic) version": python_version,
-        "args": args,
-    }
-    print("Developer mode enabled!")
-    for key, val in developer_info.items():
-        if key == "args":
-            print("Script args:")
-            for arg, arg_val in args.items():
-                print(f"{' '*4}{arg}: {arg_val}")
-        else:
-            print(f"{key}: {val}")
-
-warnings.filterwarnings("ignore")
-warnings.filterwarnings("default", category=DeprecationWarning)
-
-clear = lambda: os.system("cls" if os.name=="nt" else "clear")
-# The below method clears the screen along with the scrollback buffer. Most terminals do this by default.
-# Comment the above clear function and uncomment the bottom one if you want to change which one to use.
-# clear = lambda: os.system("printf '\e[3J' && clear")
-
-exitAttempt = False
-
-history = []
-
-class Symbols:
-    degree = '\u00b0'
-    plus_minus = '\u00b1'
-    squared = '\u00b2'
-    cubed = '\u00b3'
-    cdot = '\u00b7'
-    first = '\u00b9'
-    negative = '\u207b'
-    phi = '\u03d5'
-    pi = '\u03c0'
-    divide = '\u00f7'
-    infinity = '\u221e'
-    class Radicals:
-        sqrt = '\u221a'
-        cbrt = '\u221b'
-    class Fractions:
-        fourth = '\u00bc'
-        half = '\u00bd'
-        quarter3 = '\u00be'
-
-class StringedNumber:
-    def __init__(self, num, returnAsInt=False, addHistory=True):
-        self.addHistory = addHistory
-        if returnAsInt:
-            self.num = int(num)
-        else:
-            self.num = str(num)
-
-# constants
-c = 299792458
-g = 9.80665
-G = 6.67430 * 10**-11
-pi = math.pi
-e = math.e
-h = 6.62607015e-34
-k = 1.380649e-23
-phi = (1 + math.sqrt(5)) / 2
-NA = 6.02214076 * 10**23
-ke = 8.9875517923e+9
-e0 = 8.8541878128e-12
-R = 8.31446261815324
-
-constants = {
-    "c": f"Speed of light {c:,} m/s",
-    "g": f"Standard gravity {g} m/s{Symbols.squared}",
-    "G": f"Gravitational constant {G} N{Symbols.cdot}m{Symbols.squared}{Symbols.cdot}kg{Symbols.negative}{Symbols.squared}",
-    "h": f"Planck constant {h} J{Symbols.cdot}Hz{Symbols.negative}{Symbols.first}",
-    "kb": f"Boltzmann constant {k} J{Symbols.cdot}K{Symbols.negative}{Symbols.first}",
-    "phi": f"Golden ratio {phi}",
-    "NA": f"Avogadro constant {NA} mol{Symbols.negative}{Symbols.first}",
-    "ke": f"Coulomb constant {ke} N{Symbols.cdot}m{Symbols.squared}{Symbols.cdot}C{Symbols.negative}{Symbols.squared}",
-    "e0": f"Electric constant {e0} F{Symbols.cdot}m{Symbols.negative}{Symbols.first}",
-    "R": f"Gas constant {R} J{Symbols.cdot}K{Symbols.negative}{Symbols.first}{Symbols.cdot}mol{Symbols.negative}{Symbols.first}",
-}
-
-ans = '' #previous answer
-# function aliasing
-log10 = math.log10
-ln = math.log
-log2 = math.log2
-cbrt = math.cbrt
-def sqrt(num):
-    """Returns the square root of a number.
-    Usage:
-        sqrt(num)
-    Examples:
-        sqrt(9) -> 3
-        sqrt(-1) -> i
-    Parameters:
-        num (int,float): number for which the square root will be calculated"""
-    if num > 0:
-        result = math.sqrt(num)
-        if result.is_integer(): result = int(result)
-        return result
-    elif num < 0:
-        return cmath.sqrt(num)
-    elif num == 0:
-        return 0
-exp = math.exp
-erf = math.erf
-erfc = math.erfc
-floor = math.floor
-ceil = math.ceil
 def mean(multiset: list, no_outliers: bool = False):
     """Returns the average of a multiset of numbers.
     Usage:
@@ -177,15 +89,7 @@ def mean(multiset: list, no_outliers: bool = False):
         return sum(fixedMultiset) / len(fixedMultiset)
     return sum(multiset) / len(multiset)
 average, avg = mean, mean
-median = statistics.median
-mode = statistics.multimode
-z2p = scipy.stats.norm.cdf
-p2z = scipy.stats.norm.ppf
-fact, factorial = math.factorial, math.factorial
-normaltest = scipy.stats.normaltest
-product, prod = numpy.prod, numpy.prod
-gmean = scipy.stats.gmean
-pstdev = statistics.pstdev
+
 def ptp(numberMultiSet):
     """Returns the range of a multiset of numbers. The function "ptp" stands for "peak to peak."
     Usage:
@@ -213,109 +117,6 @@ def showhelp(functionName=None):
         return showhelp.__doc__
     elif callable(functionName):
         return functionName.__doc__
-
-def isNumber(value):
-    if isinstance(value, bool):
-        return False
-    if str(value).isnumeric():
-        return True
-    else:
-        try:
-            value = float(value)
-            return True
-        except:
-            return False
-
-def useSymbols(expression):
-    if args.get("no_symbols"):
-        return expression
-    expression = str(expression)
-    replacements = {
-        r"\*": Symbols.cdot,
-        r"(?<!.)\bsqrt\((?P<num>\d+)\)": rf"{Symbols.Radicals.sqrt}\g<num>",
-        r"(?<!\.)\bsqrt": Symbols.Radicals.sqrt,
-        r"(?<!\.)\bcbrt": Symbols.Radicals.cbrt,
-        r"(?:(?:(?<=[\+\-\*\/\,\(\^\s])|\A)\(1/2\)(?:(?=(?:[\+\-\*\/\,\)\^\s]|\Z))))": Symbols.Fractions.half,
-        r"(?:(?:(?<=[\+\-\*\/\,\(\^\s])|\A)\(1/4\)(?:(?=(?:[\+\-\*\/\,\)\^\s]|\Z))))": Symbols.Fractions.fourth,
-        r"(?:(?:(?<=[\+\-\*\/\,\(\^\s])|\A)\(3/4\)(?:(?=(?:[\+\-\*\/\,\)\^\s]|\Z))))": Symbols.Fractions.quarter3,
-        r"(?:(?<=^)|(?<=[\s\+\-\*\/|\^|\(|\,]))phi(?:(?=$)|(?=[\s\+\-\*\/\|\^|\)|\,]))": Symbols.phi,
-        r"(?:(?<=^)|(?<=[\s\+\-\*\/|\^|\(|\,]))pi(?:(?=$)|(?=[\s\+\-\*\/\|\^|\)|\,]))": Symbols.pi,
-        r"/": Symbols.divide,
-        r"(?:(?<=^)|(?<=[\s\+\-\*\/|\^|\(|\,]))(infinity|inf)(?:(?=$)|(?=[\s\+\-\*\/\|\^|\)|\,]))": Symbols.infinity,
-        r"\babs\((?P<expression>[^\(\)]*[^\(\)])\)": r"|\g<expression>|",
-        r"(?<!\.)(\bfact|\bfactorial|^fact|^factorial)\((?P<num>\d+)\)(?!\S)": r"(\g<num>)!",
-    }
-    for sym, val in replacements.items():
-        expression = re.sub(sym, val, expression)
-    return expression
-
-def addToHistory(expression, result, includeAll=False, includeAllWithSymbols=False):
-    global history, ans
-    if bool(re.search(r"^(?:\d+\.\d+|\.\d+|\d+)$", expression)):
-        return
-    if isNumber(result) and isinstance(result, (int, float)):
-        # remove last equation from history if the max. limit is reached
-        if len(history) >= 40:
-            history.pop(0)
-        if result >= 1e16 and result < sys.float_info.max:
-            appendText = f"{useSymbols(expression)} = {result:e}"
-            if result == inf:
-                appendText = f"{useSymbols(expression)} = {useSymbols(result)}"
-            if appendText in history:
-                history.remove(appendText)
-            history.append(appendText)
-        else:
-            appendText = f"{useSymbols(expression)} = {result:,}"
-            if result == inf:
-                appendText = f"{useSymbols(expression)} = {useSymbols(result)}"
-            if appendText in history:
-                history.remove(appendText)
-            history.append(appendText)
-        ans = result
-    elif isinstance(result, complex):
-        if len(history) >= 40:
-            history.pop(0)
-        ans = result
-        if result.real == 0:
-            result = "{}i".format(result.imag)
-        else:
-            result = "{} + {}i".format(result.real, result.imag)
-        appendText = f"{useSymbols(expression)} = {result}"
-        if appendText in history:
-            history.remove(appendText)
-        history.append(appendText)
-    elif isinstance(result, list):
-        if len(history) >= 40:
-            history.pop(0)
-        ans = result
-        appendText = f"{useSymbols(expression)} = {result}"
-        if appendText in history:
-            history.remove(appendText)
-        history.append(appendText)
-    elif isinstance(result, bool):
-        if len(history) >= 40:
-            history.pop(0)
-        ans = result
-        result = str(result).lower()
-        appendText = f"{useSymbols(expression)} = {result}"
-        if appendText in history:
-            history.remove(appendText)
-        history.append(appendText)
-    elif includeAll:
-        if len(history) >= 40:
-            history.pop(0)
-        if includeAllWithSymbols:
-            expression = useSymbols(expression)
-        appendText = f"{expression} = {result}"
-        if appendText in history:
-            history.remove(appendText)
-        history.append(appendText)
-        ans = result
-
-def bracketMultiplication(expression: str) -> str:
-    expression = re.sub(r"(?<=\))(?P<num>(?:\d+?\.)?\d+)", r"*\g<num>", expression)
-    expression = re.sub(r"(?P<num>(?<!\w)(?:\d+?\.)?\d+(?:(?=\()))", r"\g<num>*", expression)
-    return expression
 
 def prettyfraction(numerator, denominator):
     """Returns a prettified visualization of a fraction.
@@ -374,100 +175,6 @@ def fraction(result: float, pretty=True) -> StringedNumber:
     addToHistory(str(result), str(result_fraction))
     return StringedNumber(str(result_fraction), addHistory=False)
 
-def fixUI(userValue):
-    global history
-    match userValue.lower():
-        case "history" | "hist":
-            if history != []:
-                if HISTORY_INDEX:
-                    for index, equation in enumerate(history):
-                        print(f"{len(history)-index}.  {equation}")
-                else:
-                    print(*history, sep='\n')
-            else:
-                print("history is currently empty")
-            return None
-        case "clear history" | "clear hist":
-            if history == []:
-                print("history is already empty")
-            history = []
-            return None
-        case "constant" | "constants" | "const":
-            for key, value in constants.items():
-                print(f"{key} = {value}")
-            return None
-        case "ans":
-            if isinstance(ans, bool):
-                print(str(ans).lower())
-            else:
-                print(ans)
-            return None
-        case "exit":
-            exit()
-    checkingHistory = re.search(r"^(?:history\b|hist\b)$|^(?:history\b|hist\b)\s(?P<size>\d+)$|^(?:history\b|hist\b)\s(?P<lower>\d+)\s(?P<upper>\d+)$", userValue)
-    if bool(checkingHistory):
-        if len(history) == 0:
-            print("history is currently empty")
-            return None
-        if checkingHistory.group("size") != None:
-            returnSize = int(checkingHistory.group("size"))
-            if returnSize >= len(history): returnSize = len(history)
-            if returnSize <= 0:
-                raise ValueError("return size too low")
-            print(*history[len(history)-returnSize:len(history)], sep='\n')
-            return None
-        if checkingHistory.group("lower") != None and checkingHistory.group("upper") != None:
-            returnSizeLower = int(checkingHistory.group("lower"))
-            returnSizeUpper = int(checkingHistory.group("upper"))
-            if returnSizeLower == returnSizeUpper and 0 < returnSizeLower <= len(history):
-                print(history[len(history)-returnSizeLower])
-                return None
-            if returnSizeLower > returnSizeUpper:
-                raise ValueError("lower limit must be less than upper limit")
-            if len(history) <= returnSizeLower <= 0:
-                raise ValueError("lower limit out of range")
-            if returnSizeUpper >= 40:
-                returnSizeUpper = len(history)
-            elif returnSizeUpper <= 0:
-                raise ValueError("upper limit too low")
-            trueUpper = len(history) - (returnSizeLower-1)
-            trueLower = len(history) - returnSizeUpper
-            print(*history[trueLower:trueUpper], sep='\n')
-            return None
-    clearingHistory = re.search(r"^(?:history|hist) (?:delete|remove) (?P<num>\d+)$|^(?:history|hist) (?:delete|remove) (?P<lower>\d+) (?P<upper>\d+)$", userValue)
-    if bool(clearingHistory):
-        if not bool(clearingHistory.group("lower")):
-            if len(history) == 0:
-                print("history is currently empty")
-                return
-            if int(clearingHistory.group("num")) > len(history):
-                raise ValueError("history index does not exist")
-            indexToDelete = len(history) - int(clearingHistory.group("num"))
-            history.pop(indexToDelete)
-            return
-        else:
-            low, up = clearingHistory.group("lower"), clearingHistory.group("upper")
-            if len(history) == 0:
-                print("history is currently empty")
-                return
-            if low >= up:
-                print("lower limit must be less than upper limit")
-                return
-            indexFrom = len(history) - int(up)
-            indexTo = len(history) - (int(low) - 1)
-            valuesToRemove = history[indexFrom:indexTo]
-            for i in valuesToRemove:
-                history.remove(i)
-            return
-    userValue = re.sub(r"(?:(?<=^)|(?<=[\s\+\-\*\/\^\(\,\%]))ans(?:(?=$)|(?=[\s\+\-\*\/\^\)\,\%]))", str(ans), userValue)
-    if args.get("bracket_asterisk"):
-        userValue = bracketMultiplication(userValue)
-    userValue = re.sub(r'\^', "**", userValue)
-    userValue = re.sub(r"\b(?P<num>\d+)i\b", r"\g<num>j", userValue)
-    userValue = re.sub(r"(?:(?<=[\s\+\-\*\/\,\(])|(?:^))(?:(?P<num>\d+)!(?:(?=[\s\+\-\*\/\,\)]|(?:$))))", r"factorial(\g<num>)", userValue)
-    return userValue
-
-
 # more functions
 def deg2rad(deg):
     """Returns degrees to radians.
@@ -514,12 +221,12 @@ def root(nth, n):
         return int(result)
     return result
 
-def roundup(num, prec=0):
+def round5up(num, prec=0):
     """Rounds 5 up.
     Usage:
-        roundup(num, prec=0)
+        round5up(num, prec=0)
     Example:
-        roundup(2.5, 0) -> 3
+        round5up(2.5, 0) -> 3
     Parameters:
         num (float): number to round
         prec (int):  number of decimal places to round"""
@@ -530,12 +237,12 @@ def roundup(num, prec=0):
         return int(result)
     return float(result)
 
-def rounddown(num, prec=0):
+def round5down(num, prec=0):
     """Rounds 5 down.
     Usage:
-        rounddown(num, prec=0)
+        round5down(num, prec=0)
     Example:
-        rounddown(2.5, 0) -> 2
+        round5down(2.5, 0) -> 2
     Parameters:
         num (float): number to round
         prec (int):  number of decimal places to round"""
@@ -1213,7 +920,7 @@ def roundsigfig(num, prec=1):
     isInt = numString.isnumeric()
     if isInt:
         numAsDecimal = int(numString) / 10**len(numString)
-        roundedValue = roundup(numAsDecimal, prec)
+        roundedValue = round5up(numAsDecimal, prec)
         roundedValue *= 10**len(numString)
         roundedValue = int(roundedValue)
         resultSigFigs = sigfig(str(roundedValue))
@@ -1228,7 +935,7 @@ def roundsigfig(num, prec=1):
         numStringFirstSigFigPos = re.search("[1-9]", numStringNoJunk).start()
         numStringNoLeadingZeros = numStringNoJunk[numStringFirstSigFigPos:]
         numAsDecimal = int(numStringNoLeadingZeros) / 10**len(numStringNoLeadingZeros)
-        roundedValue = roundup(numAsDecimal, prec)
+        roundedValue = round5up(numAsDecimal, prec)
         roundedValue /= 10**(numStringFirstSigFigPos-digitPos)
         roundedValue = exp2dec(roundedValue)
         digitsWithoutDecimal = len(str(int(float(roundedValue))))
@@ -1484,146 +1191,3 @@ def sec(num, unit='rad'):
         deg -> degrees"""
     if unit == "deg": num = math.radians(num)
     return 1 / math.cos(num)
-
-newGlobal = {
-    "round": round,
-    "int": int,
-    "float": float,
-    "bool": bool,
-    "list": list,
-    "dict": dict,
-    "str": str,
-    "abs": abs,
-    "sum": sum,
-    "max": max,
-    "min": min,
-    "pow": pow,
-    "complex": complex,
-    "isinstance": isinstance,
-    "help": help,
-    "exec": exec,
-}
-
-excludedFunctions = [
-    "excludedFunctions",
-    "exp2dec",
-    "useSymbols",
-    "addToHistory",
-    "fixUI",
-    "bracketMultiplication",
-]
-
-for pack in dir():
-    if not pack.startswith('__') and pack not in excludedFunctions:
-        newGlobal[str(pack)] = globals()[pack]
-
-if args.get('e') != None:
-    ui = args.get('e')
-    fixedString = fixUI(ui)
-    if fixedString != None:
-        try:
-            if DEVELOPER:
-                result = eval(fixedString)
-            else:
-                result = eval(fixedString, {"__builtins__": None}, newGlobal)
-            if isNumber(result):
-                if result < sys.float_info.max:
-                    print(f"{result:e}") if result >= 1e16 else print(f"{result:,}")
-                else:
-                    print(result)
-            elif type(result).__name__ == "StringedNumber":
-                print(result.num)
-            else:
-                print(result)
-        except Exception as ERROR:
-            ERROR_TYPE = type(ERROR).__name__
-            ERROR_LINE = sys.exc_info()[-1].tb_lineno
-            exit(f"{ERROR_TYPE}, lineno {ERROR_LINE}: {str(ERROR)}")
-    exit()
-
-while True:
-    try:
-        ui = uiSession.prompt(">")
-        ui = " ".join(ui.split())
-        exitAttempt = False
-        match ui:
-            case "" | None:
-                continue
-            case "clear":
-                clear()
-            case _:
-                fixedString = fixUI(ui)
-                if fixedString != None:
-                    if DEVELOPER:
-                        result = eval(fixedString)
-                    else:
-                        result = eval(fixedString, {'__builtins__': None}, newGlobal)
-                    allowIsNumber = type(result).__name__ != "Decimal" and type(result).__name__ != "StringedNumber"
-                    if EQUATION_RESULTS and type(result).__name__ != "StringedNumber":
-                        print(f"{ui} = ", end='')
-                    if isNumber(result) and allowIsNumber:
-                        if float(result).is_integer():
-                            result = int(result)
-                        addToHistory(ui, result)
-                        if result >= 1e16 and result < sys.float_info.max:
-                            print(f"{result:e}")
-                        else:
-                            print(f"{result:,}")
-                    elif isinstance(result, (list, dict)):
-                        addToHistory(ui, result, includeAll=True)
-                        print(result)
-                    elif isinstance(result, complex):
-                        if result.imag == 1 and result.real == 0:
-                            result = 'i'
-                        elif result.imag == 0 and result.real != 0:
-                            result = int(result.real) if result.real.is_integer() else result.real
-                        elif result.real == 0 and result.imag != 0:
-                            result = f"{int(result.imag)}i" if result.imag.is_integer() else f"{result.imag}i"
-                        else:
-                            result = f"{result.real} + {result.imag}i"
-                        addToHistory(ui, result, includeAll=True, includeAllWithSymbols=True)
-                        print(result)
-                    elif isinstance(result, bool):
-                        addToHistory(ui, result)
-                        print( str(result).lower() )
-                    elif type(result).__name__ in ["module", "function"]:
-                        print("{}: {}".format(type(result).__name__, result.__name__))
-                    elif type(result).__name__ == 'Decimal':
-                        addToHistory(ui, str(result), includeAll=True)
-                        print(result)
-                    elif type(result).__name__ == "StringedNumber":
-                        if result.addHistory:
-                            addToHistory(ui, result.num, includeAll=True)
-                            print(result.num)
-                        else:
-                            print(result.num)
-                    elif result != None:
-                        print(result)
-    except (KeyboardInterrupt, EOFError) as ERROR:
-        if type(ERROR).__name__ == "KeyboardInterrupt":
-            if exitAttempt:
-                exit()
-            exitAttempt = True
-            print("Confirm exit via ctrl+C or ctrl+D")
-        else:
-            print("Terminating script...")
-            exit()
-    except Exception as ERROR:
-        ERROR_LINE = sys.exc_info()[-1].tb_lineno
-        ERROR_TYPE = type(ERROR).__name__
-        if DEVELOPER:
-            print(f"exception caught on lineno {ERROR_LINE}: '{ERROR_TYPE}: {ERROR}'")
-        match ERROR_TYPE:
-            case "ZeroDivisionError":
-                print("undefined")
-                addToHistory(ui, "undefined", includeAll=True, includeAllWithSymbols=True)
-            case "OverflowError":
-                print("result too big")
-                addToHistory(ui, "result too big", includeAll=True)
-            case "TypeError":
-                if str(ERROR) == "'NoneType' object is not subscriptable":
-                    print("undefined function or variable")
-                    continue
-                print(ERROR)
-            case _:
-                print(ERROR)

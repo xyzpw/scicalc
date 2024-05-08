@@ -1,5 +1,4 @@
 prompt-toolkit
-statistics
 sympy
 scipy
 numpy
