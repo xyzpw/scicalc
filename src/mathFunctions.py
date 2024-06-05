@@ -727,6 +727,7 @@ def clock(clockTime, unit='s'):
     Examples:
         clock("20:30:00") -> 73,800 # seconds into the day
         clock("21:30:00", 'h') -> 9.5 # hours into the day
+        clock("1800", 'min') -> 1,080 # minutes into the day
         clock(86395) -> "23:59:55"
     Parameters:
         clockTime (str,int,float): time in 24-hour format or time into the day
@@ -740,37 +741,31 @@ def clock(clockTime, unit='s'):
         wk -> weeks
         a -> julian year
         planck -> planck time"""
-    if isinstance(clockTime, (int, float)):
-        clockTime = time(clockTime, unit, 's')
-        if clockTime > 86400 or clockTime < 0:
-            raise ValueError("invalid time range")
-        hour = int(clockTime // 3600)
-        minute = int((clockTime - (hour * 3600)) // 60)
-        second = clockTime - ((hour * 3600) + (minute * 60))
-        second = trunc(second, 3) if int(second) < float(second) else int(second)
-        clockHands = {"hour": hour, "minute": minute, "second": second}
-        for hand in list(clockHands.keys()):
-            curVal = clockHands.get(hand)
-            if curVal < 10:
-                clockHands[hand] = f"0{str(curVal)}"
-        clockTime = f"{clockHands.get('hour')}:{clockHands.get('minute')}:{clockHands.get('second')}"
-        return StringedNumber(clockTime)
-    clockTime = clockTime.split(':')
-    if len(clockTime) not in range(2, 4):
-        raise ValueError("incorrect time-format")
-    elif len([val for val in clockTime if val.isnumeric()]) != len(clockTime):
-        raise ValueError("digits must be integers")
-    second = 0 if len(clockTime) == 2 else int(clockTime[2])
-    hour, minute = int(clockTime[0]), int(clockTime[1])
-    correctRange = (hour <= 24 >= 0) and (minute < 60 >= 0) and (second < 60 >= 0)
-    if correctRange == False:
-        raise ValueError("incorrect time range")
-    elif hour == 24:
-        if (minute + second > 0):
-            raise ValueError("time exceeds 24 hours")
-    timeElapse = hour * 3600 + (minute * 60) + second
-    timeElapse = time(timeElapse, 's', unit)
-    return timeElapse
+    if isinstance(clockTime, str):
+        clockCivSearch = re.search(r"^(\d{1,2}):(\d{2})(?::(\d{2}))?$", clockTime)
+        clockMilSearch = re.search(r"^(\d{2})(\d{2})(?::(\d{2}))?$", clockTime)
+        isCiv = clockCivSearch != None
+        isMil = clockMilSearch != None
+        if isCiv:
+            clockHands = (clockCivSearch.group(1), clockCivSearch.group(2), clockCivSearch.group(3) if clockCivSearch.group(3) != None else 0)
+        elif isMil:
+            clockHands = (clockMilSearch.group(1), clockMilSearch.group(2), clockMilSearch.group(3) if clockMilSearch.group(3) != None else 0)
+        else:
+            raise ValueError("invalid clock time format")
+        clockHands = tuple([int(clockHands[i]) for i in range(len(clockHands))])
+        if not clockHands[1] in range(0, 60) or not clockHands[2] in range(0, 60):
+            raise ValueError("minutes or seconds must be no less than 0 and not greater than 60")
+        timeElapsed = clockHands[0] * 3600 + clockHands[1] * 60 + clockHands[2]
+        return time(timeElapsed, "s", unit)
+    clockHour = int(clockTime // 3600)
+    clockMinute = int((clockTime - clockHour*3600) // 60)
+    clockSeconds = round5up(clockTime - clockHour * 3600 - clockMinute * 60, 3)
+    clockHour, clockMinute = str(clockHour).zfill(2), str(clockMinute).zfill(2)
+    if clockSeconds.is_integer():
+        clockSeconds = str(int(clockSeconds)).zfill(2)
+    else:
+        clockSeconds = f"{str(int(clockSeconds)).zfill(2)}.{str(clockSeconds)[str(clockSeconds).find(".")+1:]}"
+    return StringedNumber("%s:%s:%s" % (clockHour, clockMinute, clockSeconds))
 
 def storage(n, unit1, unit2):
     """Returns data sizes converted into another unit.
