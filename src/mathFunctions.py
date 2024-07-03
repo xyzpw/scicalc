@@ -6,6 +6,7 @@ import fractions
 import math
 import re
 import decimal
+from datetime import datetime
 from handlers._fixUi import *
 from handlers._validators import *
 from handlers._mathConstants import *
@@ -65,6 +66,7 @@ __all__ = [
     "cot",
     "csc",
     "sec",
+    "howlongago",
 ]
 
 def mean(multiset: list, no_outliers: bool = False):
@@ -757,6 +759,8 @@ def clock(clockTime, unit='s'):
             raise ValueError("minutes or seconds must be no less than 0 and not greater than 60")
         timeElapsed = clockHands[0] * 3600 + clockHands[1] * 60 + clockHands[2]
         return time(timeElapsed, "s", unit)
+    if unit != "s":
+        clockTime = time(clockTime, unit, "s")
     clockHour = int(clockTime // 3600)
     clockMinute = int((clockTime - clockHour*3600) // 60)
     clockSeconds = round5up(clockTime - clockHour * 3600 - clockMinute * 60, 3)
@@ -766,6 +770,40 @@ def clock(clockTime, unit='s'):
     else:
         clockSeconds = f"{str(int(clockSeconds)).zfill(2)}.{str(clockSeconds)[str(clockSeconds).find(".")+1:]}"
     return StringedNumber("%s:%s:%s" % (clockHour, clockMinute, clockSeconds))
+
+def howlongago(clockTime, unit='s'):
+    """Returns how much time has passed since the specified clock time.
+    Usage:
+        howlongago(clockTime, unit='s')
+    Examples:
+        howlongago("0100", 'h') -> 1
+        howlongago("01:00", 'min') -> 60
+    Parameters:
+        clockTime (str):      time in 24-hour format
+        unit, optional (str): unit of time
+    Units:
+        us -> microsecond
+        ms -> millisecond
+        min -> minute
+        h -> hour
+        d -> days
+        wk -> weeks
+        a -> julian year
+        planck -> planck time"""
+    clockCivSearch = re.search(r"^(\d{1,2}):(\d{2})(?::(\d{2}))?$", clockTime)
+    clockMilSearch = re.search(r"^(\d{2})(\d{2})(?::(\d{2}))?$", clockTime)
+    isMil = clockMilSearch != None
+    hasSecondsHand = clockMilSearch.group(3) != None if isMil else clockCivSearch.group(3) != None
+    clockSecondsHand = (clockMilSearch.group(3) if isMil else clockCivSearch.group(3)) if hasSecondsHand else 0
+    clockHands = (
+        int(clockMilSearch.group(1) if isMil else clockCivSearch.group(1)),
+        int(clockMilSearch.group(2) if isMil else clockCivSearch.group(2)),
+        int(clockSecondsHand),
+    )
+    currentDate = datetime.now().date()
+    howLongAgoResult = datetime(currentDate.year, currentDate.month, currentDate.day, clockHands[0], clockHands[1], clockHands[2])
+    howLongAgoResult = datetime.now().timestamp() - howLongAgoResult.timestamp()
+    return howLongAgoResult if unit == "s" else time(howLongAgoResult, "s", unit)
 
 def storage(n, unit1, unit2):
     """Returns data sizes converted into another unit.

@@ -20,8 +20,11 @@ history = []
 ans = ''
 
 def bracketMultiplication(expression: str) -> str:
-    expression = re.sub(r"(?<=\))(?P<num>(?:\d+?\.)?\d+)", r"*\g<num>", expression)
-    expression = re.sub(r"(?P<num>(?<!\w)(?:\d+?\.)?\d+(?:(?=\()))", r"\g<num>*", expression)
+    # expression = re.sub(r"(?<=\))(?P<num>(?:\d+?\.)?\d+)", r"*\g<num>", expression)
+    # expression = re.sub(r"(?P<num>(?<!\w)(?:\d+?\.)?\d+(?:(?=\()))", r"\g<num>*", expression)
+    #NOTE: The above commented code is deprecated due to the lower code containing updated regex patterns
+    expression = re.sub(r"(?<!\w)(?P<num>(\d*?\.)?\d+)(?=\()", r"\g<num>*", expression)
+    expression = re.sub(r"(?<=\))(?P<num>(?:\d*?\.)?\d+)", r"*\g<num>", expression)
     return expression
 
 def checkFailedAutoMultiply(expression: str) -> bool:
