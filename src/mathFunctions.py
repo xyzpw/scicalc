@@ -506,6 +506,7 @@ def mass(n, unit1, unit2):
         unit2 (str):    unit to convert to
     Units:
         kg -> kilograms
+        pg -> picogram
         ng -> nanograms
         ug -> micrograms
         mg -> milligrams
@@ -519,6 +520,7 @@ def mass(n, unit1, unit2):
         planck -> planck mass"""
     units = {
         "kg": 1,
+        "pg": 1e-15,
         "ng": 1/1e12,
         "ug": 1/1e9,
         "mg": 1/1e6,
@@ -768,7 +770,7 @@ def clock(clockTime, unit='s'):
     if clockSeconds.is_integer():
         clockSeconds = str(int(clockSeconds)).zfill(2)
     else:
-        clockSeconds = f"{str(int(clockSeconds)).zfill(2)}.{str(clockSeconds)[str(clockSeconds).find(".")+1:]}"
+        clockSeconds = f"{str(int(clockSeconds)).zfill(2)}.{str(clockSeconds)[str(clockSeconds).find('.')+1:]}"
     return StringedNumber("%s:%s:%s" % (clockHour, clockMinute, clockSeconds))
 
 def howlongago(clockTime, unit='s'):
@@ -1053,11 +1055,11 @@ def temperature(num, unit1, unit2):
         case "k2c":
             return num - 273.15
         case "k2f":
-            return (num - 274.15) * (9/5)
+            return (num - 273.15) * (9/5) + 32
         case "planck2c":
             return (num * planckTemp) - 273.15
         case "planck2f":
-            return ((num * planckTemp) - 274.15) * (9/5)
+            return ((num * planckTemp) - 273.15) * (9/5) + 32
         case "planck2k":
             return num * planckTemp
         case "c2planck":
