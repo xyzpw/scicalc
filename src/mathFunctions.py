@@ -1,5 +1,6 @@
 import sympy
 import scipy
+import scipy.special
 import numpy
 import statistics
 import fractions
@@ -67,6 +68,8 @@ __all__ = [
     "csc",
     "sec",
     "howlongago",
+    "lambertw",
+    "solve",
 ]
 
 def mean(multiset: list, no_outliers: bool = False):
@@ -1226,3 +1229,25 @@ def sec(num, unit='rad'):
         deg -> degrees"""
     if unit == "deg": num = math.radians(num)
     return 1 / math.cos(num)
+
+def lambertw(num: float):
+    """Uses scipy's `lambertw` function.
+    Usage:
+        lambertw(num)
+    Examples:
+        lambertw(2) -> 0.85"""
+    return complex(scipy.special.lambertw(num))
+
+def solve(equation: str, result: float):
+    """Uses sympy to solve $x$.
+    Usage:
+        solve(equation, result)
+    Examples:
+        solve("x**2", 9) -> [-3, 3]
+    Parameters:
+        equation (str): equation used to solve for $x$
+        result (float): the result of which will be used to solve for $x$"""
+    equation = sympy.sympify(equation)
+    equation = sympy.Eq(equation, result)
+    solution = sympy.solve(equation, 'x')
+    return solution

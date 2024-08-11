@@ -58,8 +58,10 @@ while True:
                         result = 'i'
                     elif result.real == 0 and result.imag != 0:
                         result = f"{int(result.imag)}i" if result.imag.is_integer() else f"{result.imag}i"
+                    elif result.real != 0 and result.imag == 0:
+                        result = float(result.real)
                     else:
-                        result = f"{result.real} + {result.imag}i"
+                        result = f"{result.real} + {result.imag if not result.imag.is_integer() else int(result.imag)}i"
                     addToHistory(ui, result, includeAll=True, includeAllWithSymbols=True)
                     print(result)
                 elif isinstance(result, bool):
