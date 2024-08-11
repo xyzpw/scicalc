@@ -13,7 +13,7 @@ __all__ = [
     "pi",
     "e",
     "h",
-    "k",
+    "kb",
     "phi",
     "NA",
     "ke",
@@ -49,7 +49,7 @@ G = 6.67430 * 10**-11
 pi = float(math.pi)
 e = float(math.e)
 h = 6.62607015e-34
-k = 1.380649e-23
+kb = 1.380649e-23
 phi = (1 + math.sqrt(5)) / 2
 NA = 6.02214076 * 10**23
 ke = 8.9875517923e+9
@@ -77,7 +77,7 @@ constants = {
     "g": f"Standard gravity {g} m/s{mathSymbols['squared']}",
     "G": f"Gravitational constant {G} N{mathSymbols['cdot']}m{mathSymbols['squared']}{mathSymbols['cdot']}kg{mathSymbols['negative']}{mathSymbols['squared']}",
     "h": f"Planck constant {h} J{mathSymbols['cdot']}Hz{mathSymbols['negative']}{mathSymbols['first']}",
-    "kb": f"Boltzmann constant {k} J{mathSymbols['cdot']}K{mathSymbols['negative']}{mathSymbols['first']}",
+    "kb": f"Boltzmann constant {kb} J{mathSymbols['cdot']}K{mathSymbols['negative']}{mathSymbols['first']}",
     "phi": f"Golden ratio {phi}",
     "NA": f"Avogadro constant {NA} mol{mathSymbols['negative']}{mathSymbols['first']}",
     "ke": f"Coulomb constant {ke} N{mathSymbols['cdot']}m{mathSymbols['squared']}{mathSymbols['cdot']}C{mathSymbols['negative']}{mathSymbols['squared']}",
