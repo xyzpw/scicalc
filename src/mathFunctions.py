@@ -5,6 +5,11 @@ import numpy
 import statistics
 import fractions
 import math
+from math import (
+    sinh,
+    cosh,
+    tanh,
+)
 import re
 import decimal
 from datetime import datetime
@@ -59,10 +64,13 @@ __all__ = [
     "temperature",
     "exp2dec",
     "tan",
+    "tanh",
     "arctan",
     "sin",
+    "sinh",
     "arcsin",
     "cos",
+    "cosh",
     "arccos",
     "cot",
     "csc",
