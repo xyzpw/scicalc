@@ -99,4 +99,3 @@ normaltest = scipy.stats.normaltest
 product, prod = numpy.prod, numpy.prod
 gmean = scipy.stats.gmean
 pstdev = statistics.pstdev
-
