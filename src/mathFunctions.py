@@ -78,6 +78,8 @@ __all__ = [
     "howlongago",
     "lambertw",
     "solve",
+    "erfinv",
+    "erfcinv",
 ]
 
 def mean(multiset: list, no_outliers: bool = False):
@@ -1259,3 +1261,19 @@ def solve(equation: str, result: float):
     equation = sympy.Eq(equation, result)
     solution = sympy.solve(equation, 'x')
     return solution
+
+def erfinv(num: float):
+    """Uses scipy's `erfinv` function.
+    Usage:
+        erfinv(num)
+    Examples:
+        erfinv(0.5) -> ~0.48"""
+    return scipy.special.erfinv(num)
+
+def erfcinv(num: float):
+    """Uses scipy's `erfcinv` function.
+    Usage:
+        erfcinv(num)
+    Examples:
+        erfcinv(0.02212) -> ~1.618"""
+    return scipy.special.erfcinv(num)
