@@ -77,6 +77,7 @@ __all__ = [
     "sec",
     "howlongago",
     "lambertw",
+    "W",
     "solve",
     "erfinv",
     "erfcinv",
@@ -561,6 +562,7 @@ def time(n, unit1, unit2):
         unit1 (str):    time unit being used
         unit2 (str):    unit to convert to
     Units:
+        ns -> nanosecond
         us -> microsecond
         ms -> millisecond
         min -> minute
@@ -571,6 +573,7 @@ def time(n, unit1, unit2):
         planck -> planck time"""
     units = {
         "s": 1,
+        "ns": 1e-9,
         "us": 1/1e6,
         "ms": 1/1e3,
         "min": 60,
@@ -1240,13 +1243,14 @@ def sec(num, unit='rad'):
     if unit == "deg": num = math.radians(num)
     return 1 / math.cos(num)
 
-def lambertw(num: float):
+def lambertw(*args, **kwargs):
     """Uses scipy's `lambertw` function.
     Usage:
-        lambertw(num)
+        lambertw(*args, **kwargs)
     Examples:
         lambertw(2) -> 0.85"""
-    return complex(scipy.special.lambertw(num))
+    return complex(scipy.special.lambertw(*args, **kwargs))
+W = lambertw # alias for lambert W
 
 def solve(equation: str, result: float):
     """Uses sympy to solve $x$.
