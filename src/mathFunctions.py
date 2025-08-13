@@ -81,6 +81,7 @@ __all__ = [
     "solve",
     "erfinv",
     "erfcinv",
+    "erfi",
 ]
 
 def mean(multiset: list, no_outliers: bool = False):
@@ -1281,3 +1282,11 @@ def erfcinv(num: float):
     Examples:
         erfcinv(0.02212) -> ~1.618"""
     return scipy.special.erfcinv(num)
+
+def erfi(*args, **kwargs):
+    """Uses scipy's `erfi` function.
+    Usage:
+        erfi(*args, **kwargs)
+    Examples:
+        erfi(1) -> ~1.65"""
+    return scipy.special.erfi(*args, **kwargs)
